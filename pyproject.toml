@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "lucent"
+version = "0.0.1"
+description = "Code understanding as a ledgered investigation: enumerate a Python codebase and understand it with guaranteed coverage."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [{ name = "batteryshark" }]
+keywords = ["code-understanding", "static-analysis", "muster"]
+
+# lucent is built on muster: it brings only its domain (what a code "symbol" is, how a
+# module is understood, when the surface is covered). The spine (ledger, work queue, graph
+# scaffolding, resume, coverage) comes from muster. Pure-stdlib `ast`, no heavy deps.
+dependencies = [
+    "muster",
+]
+
+# muster is consumed as a pinned git dependency (its own private repo).
+[tool.uv.sources]
+muster = { git = "https://github.com/batteryshark/muster.git", rev = "3a14fad5dec9e84483d12ebd4c3a62aecbb0eeb5" }
+
+[project.scripts]
+lucent = "lucent.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lucent"]
+
+# The domain schema is a .sql data file loaded at runtime by lucent.ledger.
+[tool.hatch.build.targets.wheel.force-include]
+"src/lucent/schema.sql" = "lucent/schema.sql"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = ["pytest>=8"]
