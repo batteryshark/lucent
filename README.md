@@ -1,6 +1,8 @@
 # lucent
 
-![Lucent: a retro robot inspector illuminating the hidden workings of a machine](assets/lucent-logo-480.png)
+<p align="center">
+  <img src="assets/lucent-logo-480.png" width="480" alt="Lucent: a retro robot inspector illuminating the hidden workings of a machine">
+</p>
 
 *Figure out a codebase, as a ledgered investigation.*
 
