@@ -5,9 +5,16 @@
 *Figure out a codebase, as a ledgered investigation.*
 
 lucent reads a target and produces a coverage-guaranteed **understanding** of it: what every
-source file can do, how the Python modules are wired together, and an interpretation of both
-through four lenses. Every file is accounted for, and the run is durable and resumable
-through a per-run SQLite ledger.
+source file can do — observed across **every language its parser supports** (Go, JavaScript,
+TypeScript, Rust, Ruby, shell, and the rest of the tree-sitter grammars) — and, for Python
+specifically, how the modules are wired together, then an interpretation of both through four
+lenses. Every file is accounted for, and the run is durable and resumable through a per-run
+SQLite ledger.
+
+Behaviour observation is language-agnostic; the deeper *structural* layer (the reference graph,
+reachability, symbol inventory, and docstring-derived purpose) is Python-only for now. A scan of
+a Go or JS codebase still gets the full capability map and the does/decides/brittle/surprising
+findings that read from it — it just won't get the Python-specific dependency graph.
 
 It answers four questions about a codebase, keeping fact and judgment in separate layers:
 
@@ -123,8 +130,9 @@ Without the `parse` extra, non-Python files fall back to a lower-fidelity regex 
 Capability is not accusation — an observed atom says what the code *can* do, not that it is
 wrong. Absence is not a guarantee — an atom lucent did not observe may still be reachable
 through a path its extractors do not cover (the coverage section states the limits). The
-dependency graph and symbol inventory are Python-only; other languages are observed for
-behaviour but not structurally linked.
+reference graph, symbol inventory, reachability analysis, and docstring-derived purpose are
+Python-only; other languages are still observed for behaviour — they appear in the capability
+map, the composition, and the atom-driven findings — but are not structurally linked.
 
 ## Requirements
 
