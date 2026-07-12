@@ -1,8 +1,8 @@
 """Single source of the package version.
 
-A leaf module so ``assess`` can cite the version without importing the ``lucent`` package
-top-level, which would form a module-level import cycle (``assess`` → ``__init__`` →
-``graph`` → ``assess``) — exactly the kind of thing lucent's brittle lens flags.
+Kept as a leaf module so ``assess`` can read the version without importing the top-level
+``lucent`` package. A top-level import would form a module-level cycle
+(``assess`` -> ``__init__`` -> ``graph`` -> ``assess``).
 """
 
 from __future__ import annotations

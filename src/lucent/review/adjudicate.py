@@ -1,9 +1,9 @@
 """Fold a batch of per-finding reviews into a review overlay for the assessment.
 
-The engine finds the shapes deterministically; the reviewer reads the code behind each and
-deepens it. This module tallies the verdicts and produces the ``review`` block the report
-renders next to the findings — the run-level "what did a closer read change?" and each
-finding's plain-language explanation. It never recomputes findings or fragility; it annotates.
+The engine finds the shapes deterministically; the reviewer reads the code behind each. This
+module tallies the verdicts and produces the ``review`` block that the report renders next to
+the findings: the run-level "what did a closer read change?" summary and each finding's
+plain-language explanation. It annotates rather than recomputing findings or fragility.
 """
 
 from __future__ import annotations

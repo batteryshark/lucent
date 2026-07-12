@@ -1,11 +1,10 @@
-"""The bounded finding reviewer (pydantic-ai).
+"""Bounded finding reviewer (pydantic-ai).
 
 One finding in, one typed :class:`FindingReview` out. The model reads the finding and the
-exact code it cites and *deepens the understanding*: what is actually happening at those
-sites, whether the mechanical reading holds, and what it means for someone changing the code.
-It never changes a finding's fragility rating and never decides completion. Any failure (unreachable
-endpoint, malformed output) degrades to a ``needs_human`` review that keeps the finding — never
-a silent drop.
+exact code it cites, then reports what is happening at those sites, whether the mechanical
+reading holds, and what it means for someone changing the code. It does not change a finding's
+fragility rating and does not decide completion. Any failure, such as an unreachable endpoint or
+malformed output, produces a ``needs_human`` review that keeps the finding rather than dropping it.
 """
 
 from __future__ import annotations
@@ -15,25 +14,25 @@ from lucent.review.schemas import FindingReview
 
 REVIEW_INSTRUCTIONS = (
     "You are a senior engineer helping a colleague understand a codebase. You are given ONE "
-    "finding about the code — from one of four lenses: does (a capability), decides (a runtime "
-    "fork), brittle (a fragility), surprising (a mismatch) — together with the exact code it "
-    "cites. Read the evidence and deepen the understanding.\n\n"
+    "finding about the code, from one of four lenses: does (a capability), decides (a runtime "
+    "fork), brittle (a fragility), surprising (a mismatch). You also get the exact code it "
+    "cites. Read the evidence and explain what it means.\n\n"
     "Rules:\n"
     "- Judge only THIS finding, from the cited evidence. Do not invent evidence.\n"
-    "- verdict: confirm (the reading holds as stated), refine (holds, but with important "
-    "context the mechanical finding missed — e.g. it is guarded, scoped, or has a narrow real "
-    "purpose), refute (the reading is wrong — dead code, test-only, or a misidentified callee), "
-    "needs_human (genuinely can't tell from the evidence).\n"
-    "- explanation: 2-4 plain sentences on what is ACTUALLY happening at these sites in context "
-    "— the real behaviour or purpose, not a restatement of the finding. This is the payload: it "
-    "is what turns a mechanical fact into understanding.\n"
+    "- verdict: confirm (the reading holds as stated), refine (it holds, but with important "
+    "context the mechanical finding missed, such as it being guarded, scoped, or having a "
+    "narrow real purpose), refute (the reading is wrong: dead code, test-only, or a "
+    "misidentified callee), needs_human (you genuinely can't tell from the evidence).\n"
+    "- explanation: 2-4 plain sentences on what is ACTUALLY happening at these sites in "
+    "context, meaning the real behaviour or purpose, not a restatement of the finding. This is "
+    "the part that turns a mechanical fact into something a reader can use.\n"
     "- consideration: one sentence on what this means for someone modifying this code (or empty).\n"
     "- reviewed_confidence in [0,1]: how much the finding's reading holds after you read the "
-    "evidence. Be willing to refute — a confident 'this is fine because X' helps more than "
+    "evidence. Be willing to refute. A confident 'this is fine because X' helps more than "
     "hedging. This is understanding, not security: findings have no severity, and you do not "
     "change a brittle finding's fragility rating.\n"
     "- If the reader gave a GOAL or question, set `relevance` to one sentence on how this "
-    "finding bears on it — and leave it empty if it does not. Do not stretch: an honest 'not "
+    "finding bears on it, and leave it empty if it does not. Do not stretch: an honest 'not "
     "relevant' (empty) is more useful than a forced connection. The goal never changes your "
     "verdict; it only decides what you highlight.\n"
     "- List which of the finding's disproof criteria you actually checked against the evidence."
@@ -41,8 +40,9 @@ REVIEW_INSTRUCTIONS = (
 
 
 def build_reviewer(model=None):
-    """An Agent that emits a validated :class:`FindingReview`. ``model`` may be any pydantic-ai
-    model (including TestModel/FunctionModel for tests); default resolves one from the env."""
+    """Build an Agent that emits a validated :class:`FindingReview`. ``model`` may be any
+    pydantic-ai model, including TestModel or FunctionModel for tests. If omitted, the config
+    resolves one from the environment."""
     from pydantic_ai import Agent
 
     if model is None:
@@ -63,14 +63,14 @@ def _evidence_lines(evidence: list[dict]) -> list[str]:
         loc = o.get("location") or {}
         ev = o.get("evidence") or {}
         matched = ev.get("matchedText") or ev.get("summary") or ""
-        head = f"- {o.get('atom') or ''} @ {loc.get('path')}:{loc.get('line')} — {_clip(str(matched))}"
+        head = f"- {o.get('atom') or ''} @ {loc.get('path')}:{loc.get('line')} · {_clip(str(matched))}"
         out.append(head)
         snip = ev.get("snippet")
         if snip:
             for ln in snip.get("lines", []):
                 mark = ">" if ln.get("match") else " "
                 out.append(f"    {mark} {ln['n']}: {_clip(ln['text'])}")
-    return out or ["(no cited code evidence — this finding is structural)"]
+    return out or ["(no cited code evidence; this finding is structural)"]
 
 
 def build_prompt(finding: dict, evidence: list[dict], goal: str | None = None) -> str:

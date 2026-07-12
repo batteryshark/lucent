@@ -1,15 +1,15 @@
-"""Reachability analysis — dead, unreachable, and hard-to-reach code (Python).
+"""Reachability analysis: dead, unreachable, and hard-to-reach code (Python).
 
-Some of the most useful things to know about a codebase are the parts that *don't* run, or
-run only under contorted conditions: statements after a ``return`` that can never execute,
-branches behind a constant guard, private helpers nothing calls, and logic buried so deep in
-nested conditions it is only reached in very specific cases. These are judgment-free
-structural facts — exactly lucent's kind of observation — and they feed the ``surprising``
-lens (dead/unreachable) and the ``brittle`` lens (hard-to-reach).
+Some of the most useful things to know about a codebase are the parts that do not run, or run
+only under contorted conditions: statements after a ``return`` that can never execute, branches
+behind a constant guard, private helpers nothing calls, and logic buried so deep in nested
+conditions it is only reached in very specific cases. These are judgment-free structural facts,
+exactly lucent's kind of observation. They feed the ``surprising`` lens (dead and unreachable
+code) and the ``brittle`` lens (hard-to-reach code).
 
-Pure-stdlib ``ast``, intra-module and conservative by design: it reports what it can prove
-from one module's syntax, and leans toward silence over a false "this is dead" (which would be
-worse than saying nothing). Python-only, like the rest of the structural layer.
+Pure-stdlib ``ast``, intra-module and conservative by design: it reports what it can prove from
+one module's syntax, and prefers silence to a false "this is dead", since a false positive is
+worse than saying nothing. Python-only, like the rest of the structural layer.
 """
 
 from __future__ import annotations
@@ -17,8 +17,9 @@ from __future__ import annotations
 import ast
 from collections import Counter
 
-#: Nesting depth (of if/for/while/with/try) at or above which a statement is "hard to reach" —
-#: only entered under this many stacked conditions. 5 keeps it to genuinely deep logic.
+#: Nesting depth (of if/for/while/with/try) at or above which a statement is "hard to reach",
+#: meaning it is only entered under this many stacked conditions. 5 keeps it to genuinely deep
+#: logic.
 _DEEP_THRESHOLD = 5
 _NESTERS = (ast.If, ast.For, ast.AsyncFor, ast.While, ast.With, ast.AsyncWith, ast.Try)
 _DEFS = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
@@ -87,8 +88,9 @@ def _max_nesting(func: ast.AST) -> tuple[int, int]:
 
 
 def _used_identifiers(tree: ast.Module) -> Counter:
-    """How often each identifier is referenced (as a name or an attribute) — so a definition
-    referenced nowhere can be spotted. A module-private def's own header is not a reference."""
+    """How often each identifier is referenced (as a name or an attribute), so a definition
+    referenced nowhere can be spotted. A module-private def's own header is not counted as a
+    reference."""
     c: Counter = Counter()
     for n in ast.walk(tree):
         if isinstance(n, ast.Name):
@@ -111,10 +113,10 @@ def _dunder_all(tree: ast.Module) -> set[str]:
 def analyze(tree: ast.Module) -> list[dict]:
     """Reachability facts for one module, as flat rows ``{kind, name, lineno, detail}``:
 
-      * ``unreachable``    — a statement follows a return/raise/break/exit in the same block.
-      * ``constant-guard`` — a branch is gated on a constant-false test (``if False:``).
-      * ``deep-nesting``   — a function nests compound statements ≥ the deep threshold.
-      * ``dead-code``      — a module-private def is referenced nowhere in its module.
+      * ``unreachable``:    a statement follows a return/raise/break/exit in the same block.
+      * ``constant-guard``: a branch is gated on a constant-false test (``if False:``).
+      * ``deep-nesting``:   a function nests compound statements at or above the deep threshold.
+      * ``dead-code``:      a module-private def is referenced nowhere in its module.
     """
     rows: list[dict] = []
 

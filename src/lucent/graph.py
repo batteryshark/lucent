@@ -1,14 +1,14 @@
-"""lucent's phase graph — thin domain nodes over muster's scaffolding.
+"""lucent's phase graph: thin domain nodes over muster's scaffolding.
 
     InitializeRun -> InventorySources -> ProcessWorkQueue (drain) -> ComposeFindings
                   -> RenderReport -> End
 
-muster owns the machinery (identity, the ledger, the work-queue drain, resume, coverage);
-lucent brings the domain. The drain covers every source file with two operations —
-``understand-file`` (observe behaviour atoms across any language, plus extract Python
-structure) and ``link-imports`` (resolve the Python reference graph). Once the surface is
-fully observed, ``ComposeFindings`` reads the atoms and structure through the four lenses,
-and ``RenderReport`` projects it all into an assessment and renders it.
+muster provides the machinery (identity, the ledger, the work-queue drain, resume,
+coverage); the nodes here provide the domain. The drain covers every source file with two
+operations: ``understand-file`` (observe behaviour atoms across any language, plus extract
+Python structure) and ``link-imports`` (resolve the Python reference graph). After the
+surface is fully observed, ``ComposeFindings`` reads the atoms and structure through the
+four lenses, and ``RenderReport`` builds an assessment and renders it.
 """
 
 from __future__ import annotations
@@ -38,9 +38,9 @@ from lucent.signatures import Signatures
 
 # Runaway backstop for the drain loop (far above any real file count).
 _MAX_WORK_ITEMS = 20000
-# How many finding-reviews to keep in flight at once. Reviews are IO-bound model calls;
+# How many finding reviews to keep in flight at once. Reviews are IO-bound model calls, and
 # muster's single-threaded asyncio makes concurrent ledger writes safe (each commits between
-# awaits), so this is a straight wall-clock win over reviewing findings one at a time.
+# awaits), so running them concurrently cuts wall-clock time versus one at a time.
 _REVIEW_CONCURRENCY = 6
 _SKIP_DIRS = {".git", "__pycache__", ".venv", "venv", "node_modules",
               ".mypy_cache", ".pytest_cache", ".tox", "build", "dist", ".idea", ".vscode"}
@@ -55,10 +55,10 @@ class LucentConfig:
     review: bool = False
     model: str | None = None
     models: dict = field(default_factory=dict)
-    # An optional goal or question — a subtle nudge for the agentic reviewer to weight its
-    # reading toward one area, capability, or question. Deliberately does NOT touch the
-    # deterministic passes: those stay exhaustive so the coverage guarantee holds; the goal only
-    # steers interpretation and what the report surfaces.
+    # Optional goal or question that steers the agentic reviewer toward one area, capability,
+    # or question. It does not touch the deterministic passes: those stay exhaustive so the
+    # coverage guarantee holds. The goal only affects interpretation and what the report
+    # surfaces.
     goal: str | None = None
 
     def config_hash(self) -> str:
@@ -71,7 +71,7 @@ class LucentConfig:
 
 @dataclass(kw_only=True)
 class LucentState(GraphState):
-    """lucent's transient run context — muster's identity/counter fields, unchanged."""
+    """lucent's transient run context: muster's identity and counter fields, unchanged."""
 
 
 @dataclass(kw_only=True)
@@ -84,9 +84,10 @@ class LucentDeps(GraphDeps):
 
     def model_for(self, role: str):
         """Resolve the pydantic-ai model for a bounded model step's role. An injected
-        `review_model` overrides every role; otherwise `config.models[role]` → `config.model`
-        → LUCENT_REVIEW_* env. Raises ReviewConfigError if nothing is configured — the caller
-        treats that as "skip review", so the deterministic report is unaffected."""
+        `review_model` overrides every role; otherwise the fallback order is
+        `config.models[role]`, then `config.model`, then the LUCENT_REVIEW_* env. Raises
+        ReviewConfigError if nothing is configured. The caller treats that as "skip review",
+        so the deterministic report is unaffected."""
         if self.review_model is not None:
             return self.review_model
         from lucent.review.config import ReviewModelConfig
@@ -113,7 +114,7 @@ class InitializeRun(BaseNode[LucentState, LucentDeps, dict]):
 class InventorySources(BaseNode[LucentState, LucentDeps, dict]):
     """Enumerate the surface: one ``understand-file`` work item per source file lucent can
     parse (any language its extractor covers), across every supported extension. This is
-    lucent's coverage predicate — everything enqueued here must drain to a terminal state."""
+    lucent's coverage predicate: everything enqueued here must drain to a terminal state."""
 
     async def run(self, ctx: _Ctx) -> "ProcessWorkQueue":
         d, s = ctx.deps, ctx.state
@@ -153,7 +154,7 @@ class ProcessWorkQueue(BaseNode[LucentState, LucentDeps, dict]):
         d, s = ctx.deps, ctx.state
         _enter(ctx, "ProcessWorkQueue")
         processed = d.scratch.get("wq_processed", 0)
-        if processed >= _MAX_WORK_ITEMS:  # runaway backstop; surfaced, never silent
+        if processed >= _MAX_WORK_ITEMS:  # runaway backstop; records an event before bailing out
             d.ledger.event(s.run_id, "ProcessWorkQueue", "note",
                            {"stopped": "max-work-items", "processed": processed})
             return ComposeFindings()
@@ -194,8 +195,8 @@ class ComposeFindings(BaseNode[LucentState, LucentDeps, dict]):
 @dataclass
 class ReviewFindings(BaseNode[LucentState, LucentDeps, dict]):
     """Optional agentic overlay: read the code behind each finding and deepen it. Gated on
-    ``config.review`` and a resolvable model — if review is off, or no model is configured, or
-    pydantic-ai isn't installed, this skips cleanly and the deterministic report is unchanged."""
+    ``config.review`` and a resolvable model. If review is off, no model is configured, or
+    pydantic-ai is not installed, this skips cleanly and the deterministic report is unchanged."""
 
     async def run(self, ctx: _Ctx) -> "RenderReport":
         d, s = ctx.deps, ctx.state
@@ -316,8 +317,8 @@ def build_graph() -> Graph:
 
 def _handle_understand_file(ctx: _Ctx, item: dict) -> None:
     """Observe one file's behaviour atoms (any language) and, for Python, extract its symbols
-    and enqueue a ``link-imports`` follow-up. A file that will not parse is a tracked failure,
-    not a crash."""
+    and enqueue a ``link-imports`` follow-up. A file that will not parse is recorded as a
+    tracked failure rather than crashing the run."""
     d, s = ctx.deps, ctx.state
     rel = item["target"]
     payload = json.loads(item.get("payload_json") or "{}")
@@ -362,9 +363,9 @@ def _handle_understand_file(ctx: _Ctx, item: dict) -> None:
 
 
 def _handle_link_imports(ctx: _Ctx, item: dict) -> None:
-    """Record each Python import as a symbol and as a resolved reference edge, linking it back
-    to the internal module it names (or marking it external). The full module inventory is
-    known by now, so resolution is deterministic."""
+    """Record each Python import as a symbol and as a resolved reference edge. The edge points
+    to the internal module the import names, or is marked external. The full module inventory
+    is known by now, so resolution is deterministic."""
     d, s = ctx.deps, ctx.state
     src = item["target"]
     payload = json.loads(item.get("payload_json") or "{}")
@@ -385,7 +386,8 @@ def _handle_link_imports(ctx: _Ctx, item: dict) -> None:
                              result={"linked": len(imps), "internal": internal})
 
 
-# lucent's work registry — muster owns the lease/dispatch mechanism.
+# Work registry mapping operation names to handlers; WorkDispatcher (from muster) handles
+# the lease and dispatch mechanism.
 _DISPATCHER = WorkDispatcher({
     "understand-file": _handle_understand_file,
     "link-imports": _handle_link_imports,

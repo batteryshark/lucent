@@ -1,8 +1,8 @@
-"""LucentLedger: the lucent DOMAIN ledger — muster's spine plus a `symbols` table.
+"""LucentLedger: the lucent domain ledger, muster.Ledger plus domain tables such as `symbols`.
 
-Exactly the unmask pattern, a second time: subclass muster.Ledger, pass the domain
-schema + resume-reset set through the constructor, and add only the domain record/count
-methods. muster stays ignorant of what a "symbol" is.
+Subclasses muster.Ledger. The constructor passes the domain schema and the resume-reset
+table set to the base; this class adds only the domain record and count methods. The base
+Ledger has no concept of a "symbol".
 """
 
 from __future__ import annotations
@@ -52,9 +52,9 @@ class LucentLedger(Ledger):
         return out
 
     def module_paths(self, run_id: str) -> list[str]:
-        """Rel paths of every inventoried Python module — the universe an import can resolve
-        into. The reference graph is Python-only, so this filters by language, not by the
-        (now language-neutral) artifact kind."""
+        """Relative paths of every inventoried Python module, i.e. the set an import can
+        resolve into. The reference graph is Python-only, so this filters by language rather
+        than by the language-neutral artifact kind."""
         rows = self.conn.execute(
             "select logical_path from artifacts where run_id=? and kind='source-file' "
             "and language='python' order by logical_path", (run_id,)).fetchall()
@@ -72,15 +72,15 @@ class LucentLedger(Ledger):
         return cur.fetchone()["c"]
 
     def language_counts(self, run_id: str) -> dict[str, int]:
-        """Inventoried source files grouped by language — the codebase's language mix."""
+        """Inventoried source files grouped by language: the codebase's language mix."""
         cur = self.conn.execute(
             "select language, count(*) c from artifacts where run_id=? and kind='source-file' "
             "group by language order by c desc", (run_id,))
         return {r["language"] or "unknown": r["c"] for r in cur.fetchall()}
 
     def module_languages(self, run_id: str) -> dict[str, str]:
-        """``logical_path -> language`` for every inventoried source file — what the lens
-        needs to reason about a file without re-reading it."""
+        """``logical_path -> language`` for every inventoried source file, so the lens can
+        reason about a file without re-reading it."""
         rows = self.conn.execute(
             "select logical_path, language from artifacts where run_id=? and kind='source-file'",
             (run_id,)).fetchall()
@@ -94,8 +94,9 @@ class LucentLedger(Ledger):
         return {r["logical_path"]: r["path"] for r in rows}
 
     def failed_work(self, run_id: str, operation: str) -> list[dict]:
-        """Work items of ``operation`` that ended ``failed`` — e.g. modules that would not
-        parse. ``{module, error}`` per item, so the lens can surface them as brittle findings."""
+        """Work items of ``operation`` that ended ``failed``, e.g. modules that would not
+        parse. Returns ``{module, error}`` per item, so the lens can surface them as brittle
+        findings."""
         rows = self.conn.execute(
             "select target, error from work_items where run_id=? and operation=? and status='failed'",
             (run_id, operation)).fetchall()
@@ -125,15 +126,15 @@ class LucentLedger(Ledger):
         return cur.fetchone()["c"]
 
     def atom_counts(self, run_id: str) -> dict[str, int]:
-        """Observations grouped by atom — the codebase's capability profile."""
+        """Observations grouped by atom: the codebase's capability profile."""
         cur = self.conn.execute(
             "select atom, count(*) c from observations where run_id=? group by atom "
             "order by c desc", (run_id,))
         return {r["atom"]: r["c"] for r in cur.fetchall()}
 
     def observations(self, run_id: str) -> list[dict]:
-        """Every observation as a plain dict, in file/line order — the substrate the lenses
-        read and the report cites."""
+        """Every observation as a plain dict, in file and line order. This is the substrate
+        the lenses read and the report cites."""
         rows = self.conn.execute(
             "select id, module, atom, confidence, method, lineno, evidence, rule_id "
             "from observations where run_id=? order by module, lineno", (run_id,)).fetchall()

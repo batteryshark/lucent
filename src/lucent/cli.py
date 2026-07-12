@@ -1,4 +1,4 @@
-"""`lucent` command-line interface — understand a codebase."""
+"""`lucent` command-line interface for understanding a codebase."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         print(json.dumps(result.__dict__, indent=2))
         return 0
     s = result.summary
-    langs = ", ".join(f"{k} ({v})" for k, v in (s.get("languages") or {}).items()) or "—"
+    langs = ", ".join(f"{k} ({v})" for k, v in (s.get("languages") or {}).items()) or "-"
     by_lens = s.get("byLens") or {}
     lens_bits = ", ".join(f"{v} {k}" for k, v in by_lens.items() if v) or "none"
     print(f"Run:       {result.run_id}")

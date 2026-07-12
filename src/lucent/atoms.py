@@ -1,25 +1,26 @@
-"""The observation-atom catalog — lucent's judgment-free behavior vocabulary.
+"""The observation-atom catalog: lucent's judgment-free behavior vocabulary, adapted from
+the parallax ontology.
 
-Adapted from the parallax ontology: an *atom* records a mechanical fact about what code
-can do (``EXEC.SHELL`` = "invokes a shell subprocess"), never a verdict. lucent observes
-atoms from source across every language its extractor can parse, and the lenses
-(``lens.py``) supply the judgment on top — capability is not accusation.
+An *atom* records a mechanical fact about what code can do (``EXEC.SHELL`` = "invokes a
+shell subprocess"), never a verdict. lucent observes atoms from source across every language
+its extractor can parse, and the lenses (``lens.py``) supply the judgment on top. Observing
+a capability is not the same as accusing the code.
 
-This module is pure data: the category names and the per-atom title/description the report
-and lenses cite. The *detection* — which call sites map to which atom — lives in the
-vendored parallax signature pack (``signatures/source-callees.json``), loaded by
-``signatures.py``. Keeping the fact of an atom separate from how it is spotted is parallax's
-own split: the packs are data, the scanner owns mechanics.
+This module is pure data: the category names and the per-atom title and description that the
+report and lenses cite. The *detection*, meaning which call sites map to which atom, lives in
+the vendored parallax signature pack (``signatures/source-callees.json``) and is loaded by
+``signatures.py``. The fact of an atom stays separate from how it is spotted: the packs hold
+the data, the scanner owns the mechanics.
 
-The catalog is kept in sync with the atoms the vendored callee pack actually emits, so
-every observed atom renders with a real title; :func:`atom_title` degrades gracefully to
-the raw id for anything uncatalogued (e.g. a newer pack).
+The catalog stays in sync with the atoms the vendored callee pack emits, so every observed
+atom renders with a real title. :func:`atom_title` falls back to the raw id for anything
+uncatalogued, such as an atom from a newer pack.
 """
 
 from __future__ import annotations
 
-#: Atom categories, by the parallax code. Names are mechanical and lens-neutral by design:
-#: a category says what a behavior IS, not whether it is good or bad ("transformation",
+#: Atom categories, keyed by the parallax code. Names are mechanical and lens-neutral:
+#: a category names what a behavior does, not whether it is good or bad ("transformation",
 #: not "obfuscation"; "system inspection", not "reconnaissance").
 CATEGORIES: dict[str, str] = {
     "EXEC": "Code Execution",
@@ -37,10 +38,10 @@ CATEGORIES: dict[str, str] = {
 }
 
 #: The atoms lucent observes, ``id -> (title, description)``. This is exactly the vocabulary
-#: the vendored ``parallax.source-callees`` callee pack emits: the judgment-free, multi-
-#: language "what can this code reach out and do?" surface. (The MCD-flavoured content pack —
-#: sandbox evasion, persistence, credential theft — is deliberately not vendored: lucent
-#: describes a codebase, it does not accuse one.)
+#: the vendored ``parallax.source-callees`` callee pack emits: the judgment-free,
+#: multi-language "what can this code reach out and do?" surface. (The MCD-flavoured content
+#: pack, which covers sandbox evasion, persistence, and credential theft, is deliberately not
+#: vendored: lucent describes a codebase rather than accusing one.)
 ATOMS: dict[str, tuple[str, str]] = {
     "EXEC.PROC": ("Process execution",
                   "Spawns a subprocess or replaces the process image (subprocess.run/Popen, "
@@ -78,7 +79,7 @@ ATOMS: dict[str, tuple[str, str]] = {
                      "Encrypts or decrypts data at a call site."),
     # -- lucent Python-idioms supplement -----------------------------------
     "NETW.LISTEN": ("Network listener",
-                    "Binds and listens for inbound connections — a server surface "
+                    "Binds and listens for inbound connections, which is a server surface "
                     "(socketserver, http.server, asyncio.start_server)."),
     "ENVI.VAR": ("Environment configuration",
                  "Reads an environment variable, so behaviour depends on the environment "

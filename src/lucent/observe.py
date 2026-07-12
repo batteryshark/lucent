@@ -1,23 +1,24 @@
-"""The observation engine — source → judgment-free atoms, across every language it can parse.
+"""The observation engine: turns source into judgment-free atoms, across every language it
+can parse.
 
-For each source file lucent extracts the *callees* (the things the code calls) and classifies
-them against the vendored parallax callee pack (``signatures/``), yielding
-:class:`Observation` atoms: "this file can do X, here is the call site, here is how sure we
-are." No judgment — the lenses interpret; this only reports.
+For each source file lucent extracts the *callees* (the things the code calls) and
+classifies them against the vendored parallax callee pack (``signatures/``). Each match
+becomes an :class:`Observation` atom: "this file can do X, here is the call site, here is how
+sure we are." It passes no judgment: the lenses interpret, and this module only reports.
 
-Two extraction backends behind one interface:
+Two extraction backends sit behind one interface:
 
-* **Python** — pure-stdlib ``ast``. Import aliases are resolved to the canonical dotted
-  callee (``from subprocess import run as r; r()`` → ``subprocess.run``), which the pack's
-  substring rules match precisely. Zero heavy dependencies, so a Python target is fully
-  covered out of the box.
-* **Everything else** — tree-sitter via ``tree-sitter-language-pack`` (the optional
-  ``parse`` extra), degrading to a generic regex when a grammar or tree-sitter itself is
-  unavailable. Same callee-string → pack path. The extraction mode is surfaced
-  (:func:`extraction_mode`) so a run records its own fidelity rather than hiding it.
+* **Python**: pure-stdlib ``ast``. Import aliases resolve to the canonical dotted callee
+  (``from subprocess import run as r; r()`` becomes ``subprocess.run``), which the pack's
+  substring rules match precisely. It needs no heavy dependencies, so a Python target is
+  covered without installing the optional extras.
+* **Everything else**: tree-sitter via ``tree-sitter-language-pack`` (the optional ``parse``
+  extra). It falls back to a generic regex when a grammar or tree-sitter itself is
+  unavailable. Both take the same callee-string-to-pack path. :func:`extraction_mode` reports
+  which backend a run used, so the run records its own fidelity.
 
-The set of languages lucent can observe is exactly the set the tree-sitter language pack
-grammars cover (plus Python natively) — this is not a Python-only tool.
+The languages lucent can observe are exactly those the tree-sitter language pack grammars
+cover, plus Python natively.
 """
 
 from __future__ import annotations
@@ -33,8 +34,8 @@ from lucent.signatures import Signatures
 @dataclass
 class Observation:
     """One atom observed at a call site. ``method`` records how it was seen
-    (``callee-python-ast`` / ``callee-tree-sitter`` / ``callee-regex``), which is honest
-    about extraction fidelity; string evidence is the callee text that fired the rule."""
+    (``callee-python-ast``, ``callee-tree-sitter``, or ``callee-regex``), which captures the
+    extraction fidelity. ``evidence`` is the callee text that fired the rule."""
     atom: str
     confidence: float
     method: str
@@ -47,7 +48,7 @@ class Observation:
     relationships: list[dict] = field(default_factory=list)
 
     def key(self) -> tuple:
-        """Stable identity for dedup — one atom per (file, line, rule, callee)."""
+        """Stable identity for dedup: one atom per (file, line, rule, callee)."""
         return (self.atom, self.path, self.line, self.rule_id, self.evidence)
 
 
@@ -179,7 +180,7 @@ _CALL_RE = re.compile(r"([A-Za-z_$][\w$]*(?:\s*[.:]{1,2}\s*[A-Za-z_$][\w$]*)*)\s
 
 def _extract_calls_regex(src: str, lang: str) -> list[tuple[str, int]]:
     """Generic fallback: ``identifier(.member)*`` immediately followed by ``(``. Lower
-    fidelity by design — used only where a grammar (or tree-sitter) isn't available."""
+    fidelity, so it is used only where a grammar (or tree-sitter) isn't available."""
     out: list[tuple[str, int]] = []
     seen: set[tuple[str, int]] = set()
     for i, raw in enumerate(src.splitlines(), start=1):
@@ -219,7 +220,8 @@ def _import_bindings(tree: ast.Module) -> dict[str, str]:
 
 def _callee_dotted(func: ast.expr) -> str | None:
     """The dotted source form of a call's function expression (``os.path.join``), or None
-    when the head is not a plain name (e.g. ``get_client().post`` — unresolvable statically)."""
+    when the head is not a plain name (e.g. ``get_client().post``, which cannot be resolved
+    statically)."""
     parts: list[str] = []
     node = func
     while isinstance(node, ast.Attribute):
@@ -254,12 +256,12 @@ _PY_DISTINCTIVE_METHODS = frozenset({
 def _extract_calls_python(tree: ast.Module) -> list[tuple[str, int]]:
     """Callees the pack can be trusted against, from real import facts.
 
-    * A *qualified* call (``x.method``) is emitted only when ``x`` is an imported module —
-      otherwise ``x`` is a local or ``self`` and a library-name substring match on it is a
+    * A *qualified* call (``x.method``) is emitted only when ``x`` is an imported module.
+      Otherwise ``x`` is a local or ``self``, and a library-name substring match on it is a
       false positive the generic tree-sitter path can't rule out.
     * A *bare* call (``eval(...)``) is always emitted; the pack keys those on the builtin name.
     * A *distinctive pathlib method* (``p.write_text()``, ``Path(x).read_text()``) is emitted
-      as its bare method name on any receiver — the method name alone is strong evidence.
+      as its bare method name on any receiver, since the method name alone is strong evidence.
     * ``os.environ[...]`` subscripts are emitted as ``os.environ`` (an env read the callee
       surface would otherwise miss, since it is not a call).
     """

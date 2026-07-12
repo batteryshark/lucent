@@ -1,13 +1,13 @@
-"""Signature-pack reader + callee matcher.
+"""Signature-pack reader and callee matcher.
 
-Consumes the vendored ``parallax-signature-pack/v1`` callee pack
-(``source-callees.json``) — the durable, judgment-free mapping from an observed callee
-string to a parallax ontology atom. lucent reads it as *data*: meaning lives in the pack,
-mechanics live here. The pack is a verbatim copy of parallax's
-``signatures/packs/source-callees.json`` (the source of record); refresh it from there.
+Consumes the vendored ``parallax-signature-pack/v1`` callee pack (``source-callees.json``),
+the judgment-free mapping from an observed callee string to a parallax ontology atom. lucent
+reads it as *data*: the pack holds the meaning, this module holds the mechanics. The pack is a
+verbatim copy of parallax's ``signatures/packs/source-callees.json`` (the source of record);
+refresh it from there.
 
-The matcher reproduces parallax/unmask's ``match_symbol`` semantics exactly so
-classification is parity-locked to the reference — see the mode table in :func:`match_symbol`.
+The matcher reproduces the pack's ``match_symbol`` modes exactly, so classification stays
+consistent with the parallax reference. See the mode table in :func:`match_symbol`.
 Observation *gates* (a file-scope text requirement that must hold for an atom to stand, e.g.
 JS ``exec`` needs ``child_process`` in the file) are exposed for the observer to apply,
 since only it has the file text.
@@ -75,11 +75,12 @@ class SignaturePackError(ValueError):
     """Raised when the vendored signature pack is missing or malformed."""
 
 
-# --- matching (parity-locked to parallax `signatures._matches`) ------------
+# --- matching (mirrors parallax `signatures._matches`) ------------
 
 def normalize(symbol: str, *, case_sensitive: bool = False) -> str:
-    """Fold member separators (``::``, ``->``) to ``.`` and lowercase (unless the rule is
-    case-sensitive) — the canonical form both callee strings and pack values compare in."""
+    """Fold member separators (``::``, ``->``) to ``.``, and lowercase unless the rule is
+    case-sensitive. This is the canonical form that both callee strings and pack values
+    compare in."""
     out = symbol.replace("::", ".").replace("->", ".")
     return out if case_sensitive else out.lower()
 
@@ -87,12 +88,12 @@ def normalize(symbol: str, *, case_sensitive: bool = False) -> str:
 def match_symbol(candidate: str, rule: MatchRule) -> bool:
     """True if ``candidate`` matches ``rule`` under its mode:
 
-    * ``base``            — the last dotted segment equals a value;
-    * ``exact``           — the whole normalized symbol equals a value;
-    * ``suffix``          — it ends with a value;
-    * ``exact_or_suffix`` — it equals a value or ends with ``.`` + value;
-    * ``substring``       — a value occurs anywhere;
-    * ``regex``           — any value pattern searches.
+    * ``base``: the last dotted segment equals a value;
+    * ``exact``: the whole normalized symbol equals a value;
+    * ``suffix``: it ends with a value;
+    * ``exact_or_suffix``: it equals a value or ends with ``.`` + value;
+    * ``substring``: a value occurs anywhere;
+    * ``regex``: any value pattern searches.
     """
     n = normalize(candidate, case_sensitive=rule.case_sensitive)
     values = rule.values if rule.case_sensitive else tuple(v.lower() for v in rule.values)
@@ -131,7 +132,7 @@ class Signatures:
 
     def classify_callee(self, callee: str, lang: str) -> Hit | None:
         """First matching rule for ``callee`` in ``lang``, by (priority desc, pack order).
-        Returns None when nothing matches — an unclassified callee is silence, not an atom."""
+        Returns None when nothing matches, so an unclassified callee produces no atom."""
         applicable = [r for r in self.rules if r.applies_to(lang)]
         for rule in sorted(applicable, key=lambda r: (-r.priority, r.order)):
             if match_symbol(callee, rule):
@@ -190,10 +191,10 @@ def _load_pack(path: Path) -> tuple[tuple[MatchRule, ...], tuple[Gate, ...], str
 
 @lru_cache(maxsize=1)
 def _load_cached() -> Signatures:
-    """Load and cache the vendored packs (read-only; re-parsing on every observed file is pure
-    waste). The parallax callee pack and lucent's Python-idiom supplement are merged into one
-    rule set; each rule keeps its own priority, so classification order is deterministic across
-    both. Safe to share across the run."""
+    """Load and cache the vendored packs (read-only; re-parsing them for every observed file
+    would be wasteful). The parallax callee pack and lucent's Python-idiom supplement are
+    merged into one rule set; each rule keeps its own priority, so classification order is
+    deterministic across both. Safe to share across the run."""
     all_rules: list[MatchRule] = []
     all_gates: list[Gate] = []
     ids: list[str] = []

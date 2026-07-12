@@ -1,8 +1,8 @@
-"""Top-level run orchestration for lucent — set up storage + ledger, drive the graph.
+"""Top-level run orchestration for lucent: set up storage and the ledger, drive the graph.
 
-A near-verbatim twin of unmask.run.run_mcd, which is the point: the orchestration shape
-(compute identity → new run dir → create ledger → drive graph → close) is muster's, not
-the domain's. Only the ledger class, deps, and graph are lucent's.
+The orchestration shape (compute identity, create the run dir, create the ledger, drive the
+graph, close) comes from muster. The domain supplies only the ledger class, the deps, and
+the graph.
 """
 
 from __future__ import annotations
@@ -71,9 +71,9 @@ def run_lucent(target: str, config: LucentConfig | None = None, *, review_model=
 
 
 def resume_lucent(run_dir: str, *, review_model=None) -> LucentResult:
-    """Re-drive an existing run from its ledger — reconstruct config + target from the DB,
-    clear derived state (muster's reset_run_derived wipes the spine + the `symbols` table),
-    re-drive. Proves muster's resume works for lucent with zero extra code."""
+    """Re-drive an existing run from its ledger: reconstruct config and target from the DB,
+    clear derived state (reset_run_derived wipes the base tables and the `symbols` table),
+    then re-drive."""
     paths = resolve_run_dir(run_dir)
     ledger = LucentLedger(paths.db_path)
     row = ledger.get_run(paths.run_id)

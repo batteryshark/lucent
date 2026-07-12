@@ -1,11 +1,10 @@
-"""Render an assessment to JSON / Markdown / self-contained HTML.
+"""Render an assessment to JSON, Markdown, and self-contained HTML.
 
-The HTML is fully self-contained (inline CSS + one tiny inline script), theme-aware
-(light/dark via ``prefers-color-scheme``), and escapes every finding- or source-derived
-string. It is modelled on unmask's report design system but re-skinned for understanding:
-a calm synopsis banner instead of a disposition alarm, findings grouped by the four lenses
-(does / decides / brittle / surprising) rather than by malice, and a structure section that
-surfaces the dependency hubs. Severity and confidence are always shown as two axes.
+The HTML carries its own inline CSS and one small inline script, adapts to light or dark via
+``prefers-color-scheme``, and HTML-escapes every finding- or source-derived string. The layout
+opens with the overview and composition, then groups findings by the four lenses (does,
+decides, brittle, surprising), and closes with a structure section that lists the dependency
+hubs. Fragility and confidence are shown as two separate axes.
 """
 
 from __future__ import annotations
@@ -17,10 +16,10 @@ _LENSES = ["does", "decides", "brittle", "surprising"]
 _LENS_TITLE = {"does": "What it does", "decides": "What it decides",
                "brittle": "Where it is brittle", "surprising": "What is surprising"}
 _LENS_BLURB = {
-    "does": "The capabilities the code reaches for — what it can actually do.",
+    "does": "The capabilities the code reaches for: what it can actually do.",
     "decides": "Where behaviour forks at runtime: dispatch, entry points, configuration.",
     "brittle": "Points that are opaque, remote-dependent, destructive, or high-blast-radius.",
-    "surprising": "Capability that doesn't fit a module's apparent role, and orphans.",
+    "surprising": "Capability that does not fit a module's apparent role, plus orphans.",
 }
 _FRAG_ORDER = ["high", "medium", "low"]
 
@@ -100,17 +99,17 @@ def render_markdown(a: dict) -> str:
                 if isinstance(ev, dict) and ev.get("obs") in obs_by_id:
                     o = obs_by_id[ev["obs"]]
                     loc = o["location"]
-                    out.append(f"- `{loc['path']}:{loc.get('line', '?')}` — "
+                    out.append(f"- `{loc['path']}:{loc.get('line', '?')}` · "
                                f"{o.get('atom')} `{(o.get('evidence') or {}).get('matchedText', '')}`")
                 elif isinstance(ev, dict) and ev.get("path"):
-                    note = f" — {ev['note']}" if ev.get("note") else ""
+                    note = f" · {ev['note']}" if ev.get("note") else ""
                     out.append(f"- `{ev['path']}`{note}")
             out.append("")
 
     deps = a.get("dependencies") or {}
     dependents = deps.get("dependents") or {}
     if dependents:
-        out += ["## Structure — dependency hubs", ""]
+        out += ["## Structure: dependency hubs", ""]
         for mod, dents in sorted(dependents.items(), key=lambda kv: -len(kv[1]))[:8]:
             out.append(f"- `{mod}` ← {len(dents)} dependent(s)")
         out.append("")
@@ -327,7 +326,7 @@ def _evidence_html(ev_list, obs_by_id) -> str:
                 body = "<pre>" + "\n".join(lines) + "</pre>"
             rows.append(f"<div class='ev'><div class='evhead'><span class='loc'>{where}</span>{atom}</div>{body}</div>")
         elif isinstance(ev, dict) and ev.get("path"):
-            note = f" — {_esc(ev['note'])}" if ev.get("note") else ""
+            note = f" · {_esc(ev['note'])}" if ev.get("note") else ""
             rows.append(f"<div class='ev'><div class='note'><code>{_esc(ev['path'])}</code>{note}</div></div>")
     return "<div class='block'><div class='h'>Evidence</div><div class='evidence'>" + "".join(rows) + "</div></div>" if rows else ""
 
@@ -336,7 +335,7 @@ def _card(f: dict, obs_by_id) -> str:
     lens = f["lens"]
     chips = []
     frag = f.get("fragility")
-    if frag:                                     # brittle only — capabilities/decisions have no rating
+    if frag:                                     # brittle only; capabilities/decisions have no rating
         chips.append(f"<span class='chip frag-{_esc(frag)}'><span class='k'>fragility</span> {_esc(frag)}</span>")
     conf = f.get("confidence")
     if isinstance(conf, (int, float)):
@@ -426,13 +425,13 @@ def render_html(a: dict) -> str:
             for r in relevant:
                 ff = fmap.get(r["finding_id"])
                 title = _esc(ff["title"]) if ff else _esc(r["finding_id"])
-                items.append(f"<li><strong>{title}</strong> — {_esc(r['relevance'])}</li>")
+                items.append(f"<li><strong>{title}</strong> · {_esc(r['relevance'])}</li>")
             p.append("<div class='toward'><div class='toward-h'>Toward your goal</div>"
                      f"<ul>{''.join(items)}</ul></div>")
         p.append("</section>")
 
     langs = summ.get("languages") or {}
-    lang_sub = ", ".join(f"{k}" for k in list(langs)[:3]) or "—"
+    lang_sub = ", ".join(f"{k}" for k in list(langs)[:3]) or "n/a"
     frag = summ.get("highestFragility")
     p.append("<div class='axes'>")
     for lbl, val, sub in [
@@ -445,9 +444,9 @@ def render_html(a: dict) -> str:
         p.append(f"<div class='axis'><div class='lbl'>{_esc(lbl)}</div>"
                  f"<div class='val'>{_esc(val)}</div><div class='sub'>{_esc(sub)}</div></div>")
     p.append("</div>")
-    p.append("<p class='axes-note'>This is understanding, not security — capabilities and "
-             "decisions carry no severity. Only brittle findings carry a fragility rating "
-             "(how much a point complicates change), always separate from confidence.</p>")
+    p.append("<p class='axes-note'>This is understanding, not security. Capabilities and "
+             "decisions carry no severity; only brittle findings carry a fragility rating "
+             "(how much a point complicates change), kept separate from confidence.</p>")
 
     caps = summ.get("capabilities") or {}
     if caps:
@@ -471,7 +470,7 @@ def render_html(a: dict) -> str:
     p.append("<nav class='toc'><div class='toc-h'>Contents</div><ul>"
              + "".join(f"<li><a href='#{s}'>{_esc(l)}</a></li>" for s, l in toc) + "</ul></nav>")
 
-    # Composition — how the target is built (components + their dependencies)
+    # Composition: how the target is built (components and their dependencies)
     comp = a.get("composition") or {}
     comps = comp.get("components") or []
     if comps and (len(comps) > 1 or comp.get("edges")):
@@ -515,10 +514,10 @@ def render_html(a: dict) -> str:
             p.append(_card(f, obs_by_id))
         p.append("</div>")
     if not any_findings:
-        p.append("<div class='empty'>No findings — lucent observed no interpretable behaviour "
+        p.append("<div class='empty'>No findings. lucent observed no interpretable behaviour "
                  "or structure in this target.</div>")
 
-    # Structure — dependency hubs
+    # Structure: dependency hubs
     dependents = (a.get("dependencies") or {}).get("dependents") or {}
     if dependents:
         ranked = sorted(dependents.items(), key=lambda kv: -len(kv[1]))[:8]

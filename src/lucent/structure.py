@@ -1,13 +1,13 @@
-"""The Python structural layer — symbols and the internal reference graph.
+"""Python structural layer: symbols and the internal reference graph.
 
-Where ``observe.py`` reads *behaviour* across every language, this reads *structure* for
-Python specifically: the functions, classes, methods, and imports a module defines, and how
-imports resolve into a directed dependency graph over the target's own modules. It is pure
-stdlib ``ast``, so a Python target gets its full structural map with no heavy dependencies.
+observe.py reads behaviour across every language. This module reads structure for Python
+specifically: the functions, classes, methods, and imports a module defines, and how imports
+resolve into a directed dependency graph over the target's own modules. It is pure stdlib
+``ast``, so a Python target gets its full structural map with no heavy dependencies.
 
 This is Python-only by nature (dotted module names, ``from .x import y`` semantics). For a
-non-Python target lucent reports behaviour without this structural graph — an honest scope
-boundary, not a silent gap.
+non-Python target, lucent reports behaviour but omits this structural graph. The omission is a
+documented scope limit rather than an accidental gap.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from pathlib import Path
 
 
 def extract_symbols(tree: ast.Module) -> tuple[list[tuple[str, str, int, str | None]], list[dict]]:
-    """``(defs, imports)`` — top-level functions/classes plus their methods, and the import
+    """``(defs, imports)``: top-level functions and classes plus their methods, and the import
     targets. Each import dict carries enough structure for the resolver to link it back to an
     internal module: the ``module`` it names, the ``imported`` leaf, and the relative
     ``level`` (leading-dot count). ``target`` is the flat dotted form kept for the symbol."""
@@ -46,7 +46,7 @@ def extract_symbols(tree: ast.Module) -> tuple[list[tuple[str, str, int, str | N
     return defs, imports
 
 
-# --- reference resolution: dotted import targets -> internal module rel paths ---
+# --- reference resolution: dotted import targets to internal module rel paths ---
 
 def module_dotted(rel: str) -> str:
     """A module's importable dotted name ('' for a root-package ``__init__``)."""
@@ -58,7 +58,7 @@ def module_dotted(rel: str) -> str:
 
 
 def build_module_index(module_rels: list[str], root_pkg: str) -> dict[str, str]:
-    """Map every internal module's dotted name -> its rel path, so an import can resolve to
+    """Map every internal module's dotted name to its rel path, so an import can resolve to
     the module it names. Each module is also registered under the top-package prefix (the
     scanned directory's name) so absolute self-imports (``import pkg.sub``) resolve too."""
     index: dict[str, str] = {}
@@ -71,8 +71,8 @@ def build_module_index(module_rels: list[str], root_pkg: str) -> dict[str, str]:
 
 
 def _relative_base(src_rel: str, level: int) -> str:
-    """Dotted package a relative import resolves against: level 1 = the module's own package,
-    each extra dot ascends one more."""
+    """Dotted package a relative import resolves against: at level 1 it is the module's own
+    package, and each extra dot ascends one more."""
     dotted = module_dotted(src_rel)
     parts = dotted.split(".") if dotted else []
     if Path(src_rel).name != "__init__.py" and parts:

@@ -1,20 +1,22 @@
-"""The interpretation layer — reading judgment-free atoms and structure into findings.
+"""Interpretation layer: reads judgment-free atoms and structure into findings.
 
-Where ``observe.py`` records what code *can do* and ``structure.py`` records how it is
-*wired*, this module supplies the judgment: it reads that shared substrate through four
-lenses, each answering one question about the target, and never collapses them into a score.
+observe.py records what code can do and structure.py records how it is wired. This module
+supplies the judgment. It reads that shared substrate through four lenses. Each lens answers
+one question about the target, and the lenses are never collapsed into a single score.
 
-    does        — what the code actually does (its capabilities).
-    decides     — where behaviour forks at runtime (dispatch, entry points, config).
-    brittle     — where it is fragile: opaque, remote-dependent, destructive, high-blast-radius.
-    surprising  — mismatches: capability that doesn't fit a module's apparent role, orphans.
+    does:       what the code actually does (its capabilities).
+    decides:    where behaviour forks at runtime (dispatch, entry points, config).
+    brittle:    where the code is fragile: opaque, remote-dependent, destructive, or
+                high-blast-radius.
+    surprising: mismatches, such as capability that does not fit a module's apparent role,
+                and orphans.
 
-This is understanding, not security, so findings carry no "severity". A capability or a
-decision point is just a fact about the code — it has no risk grade. Only *brittle* findings
-carry a gradient, and it is **fragility**: how much this point complicates understanding or
-change. Fragility is always kept separate from **confidence** (how sure the reading is). The
-lens fires on ordinary code and names an operational fact plus what would disprove it — a map,
-not an alarm. Findings are bounded and deduplicated so the report reads as a briefing.
+These findings describe the code; they carry no security severity. A capability or a decision
+point is a fact about the code and has no risk grade. Only brittle findings carry a gradient,
+called fragility: how much a point complicates understanding or change. Fragility is kept
+separate from confidence, which is how sure the reading is. A lens fires on ordinary code and
+names an operational fact together with what would disprove it. Findings are bounded and
+deduplicated so the report reads as a briefing.
 """
 
 from __future__ import annotations
@@ -23,11 +25,11 @@ from collections import defaultdict
 
 from lucent.atoms import atom_title, category_of, category_title
 
-#: Fragility levels for brittle findings, low → high. Other lenses carry no rating.
+#: Fragility levels for brittle findings, from low to high. Other lenses carry no rating.
 FRAGILITY_ORDER = ["low", "medium", "high"]
 _FRAG_RANK = {s: i for i, s in enumerate(FRAGILITY_ORDER)}
 
-# Module base names that read as passive/structural — a capability here is a surprise.
+# Module base names that read as passive or structural. A capability in one is a surprise.
 _PASSIVE_ROLES = {
     "util", "utils", "helper", "helpers", "config", "conf", "settings", "constants",
     "const", "types", "typing", "schema", "schemas", "models", "model", "dto", "enums",
@@ -84,9 +86,9 @@ def _does(obs: list[dict]) -> list[dict]:
             max(o["confidence"] for o in group),
             composition=f"capability-{cat.lower()}", evidence=_obs_ev(group),
             disproof=["Every cited callee is a same-named local, method, or unrelated library "
-                      "rather than the one this atom names — i.e. the capability is misidentified. "
-                      "(Reachability is a *separate* question, not a disproof: dead code is latent "
-                      "capability a dynamic or external caller can still invoke — see the "
+                      "rather than the one this atom names; that is, the capability is misidentified. "
+                      "(Reachability is a separate question, not a disproof: dead code is latent "
+                      "capability that a dynamic or external caller can still invoke. See the "
                       "surprising lens.)"],
             verify=["Open a cited call site and confirm the callee resolves to the library the "
                     "atom names."],
@@ -104,7 +106,7 @@ def _decides(obs: list[dict], deps: dict) -> list[dict]:
         out.append(_finding(
             "decides", "Chooses what to load at runtime",
             f"{len(dispatch)} site(s) in {len(mods)} file(s) import a module or library "
-            "selected at runtime — the concrete behaviour depends on that input.",
+            "selected at runtime; the concrete behaviour depends on that input.",
             max(o["confidence"] for o in dispatch),
             composition="runtime-dispatch", evidence=_obs_ev(dispatch),
             disproof=["The loaded name is a fixed constant, not derived from input or config."],
@@ -290,12 +292,12 @@ def _surprising(obs: list[dict], deps: dict, module_langs: dict) -> list[dict]:
             out.append(_finding(
                 "surprising", f"Imported by nothing: {m}",
                 f"No module inside the target imports `{m}`. It is either an entry point, a "
-                "plugin loaded dynamically, or dead code — worth knowing which.",
+                "plugin loaded dynamically, or dead code. Which one is worth knowing.",
                 0.55, module=m, composition="orphan-module",
                 evidence=[{"path": m}],
                 disproof=["It is an entry point, a plugin loaded by name, or imported only by "
-                          "tests or an external consumer — reached, just not through a static "
-                          "internal import."],
+                          "tests or an external consumer, so it is reached but not through a "
+                          "static internal import."],
                 verify=["Grep for the module name and check the packaging entry points."],
             ))
     return out
@@ -305,7 +307,7 @@ def _surprising(obs: list[dict], deps: dict, module_langs: dict) -> list[dict]:
 
 def _import_cycles(depends_on: dict[str, list[str]]) -> list[list[str]]:
     """Strongly-connected components of size > 1 (or self-loops) in the internal dependency
-    graph — the import cycles. Deterministic order for a stable report."""
+    graph, i.e. the import cycles. Returned in a deterministic order for a stable report."""
     index: dict[str, int] = {}
     low: dict[str, int] = {}
     on_stack: set[str] = set()
@@ -360,8 +362,8 @@ def _reachability(reach: list[dict]) -> list[dict]:
         out.append(_finding(
             "surprising", "Unreachable code",
             f"{len(unreachable)} statement(s) across {len(mods)} file(s) follow a return, raise, "
-            "break, or exit in the same block, so they can never run — dead lines that mislead a "
-            "reader about what the code does.",
+            "break, or exit in the same block, so they can never run. These are dead lines that "
+            "mislead a reader about what the code does.",
             0.9, composition="unreachable-code",
             evidence=[{"path": r["module"], "line": r["lineno"], "note": r["detail"]}
                       for r in unreachable[:12]],
@@ -375,7 +377,7 @@ def _reachability(reach: list[dict]) -> list[dict]:
         out.append(_finding(
             "surprising", "Dead branch behind a constant guard",
             f"{len(guards)} branch(es) are gated on a constant-false test (`if False:`, `while 0:`); "
-            "the body never executes — usually a disabled feature, a debug toggle, or left-behind code.",
+            "the body never executes, usually a disabled feature, a debug toggle, or left-behind code.",
             0.85, composition="constant-guarded",
             evidence=[{"path": r["module"], "line": r["lineno"], "note": r["detail"]}
                       for r in guards[:12]],
@@ -389,14 +391,15 @@ def _reachability(reach: list[dict]) -> list[dict]:
         out.append(_finding(
             "surprising", "Private definitions nothing references",
             f"{len(dead)} module-private definition(s) ({names}) are defined but referenced nowhere "
-            "in their own module — likely dead code, or a public API accessed only by name elsewhere.",
+            "in their own module. This is likely dead code, or a public API accessed only by name "
+            "elsewhere.",
             0.6, composition="dead-definition",
             evidence=[{"path": r["module"], "line": r["lineno"], "note": f"{r['detail']} {r['name']}"}
                       for r in dead[:12]],
             disproof=["The name is invoked dynamically (getattr / globals() / importlib), "
                       "re-exported from the package, registered as a plugin or entry point, or "
-                      "reached only by tests or an out-of-tree caller — any of which makes it "
-                      "latent functionality, not dead code."],
+                      "reached only by tests or an out-of-tree caller. Any of these makes it "
+                      "latent functionality rather than dead code."],
             verify=["Grep the whole codebase (and its entry-point config) for the name before "
                     "removing it."],
         ))
@@ -409,10 +412,10 @@ def _reachability(reach: list[dict]) -> list[dict]:
             "brittle", "Logic reached only in specific, deeply-nested cases",
             f"{len(deep)} function(s) nest conditions {worst} levels deep at the worst; code that "
             "deep runs only under that many stacked conditions, so it is hard to reach in a test "
-            "and hard to hold in your head.",
+            "and hard to reason about.",
             0.8, fragility="medium" if worst >= 6 else "low", composition="deep-nesting",
             evidence=[{"path": r["module"], "line": r["lineno"],
-                       "note": f"{r['name']} — depth {r['detail']}"} for r in deep[:12]],
+                       "note": f"{r['name']}: depth {r['detail']}"} for r in deep[:12]],
             disproof=["The nesting is a flat dispatch (e.g. a match/elif chain) that reads simply "
                       "despite the depth."],
             verify=["Check whether the deepest branch has a test that actually reaches it."],

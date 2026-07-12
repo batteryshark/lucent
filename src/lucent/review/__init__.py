@@ -1,10 +1,8 @@
-"""The optional agentic-review overlay.
+"""Optional agentic-review overlay.
 
-Off by default, and behind the ``lucent[review]`` extra (pydantic-ai). When enabled, a bounded
-model step reads the code behind each finding and deepens the understanding — the better the
-system is understood, the better the decisions made about it. When no model is configured the
-overlay is skipped and the deterministic report is unchanged: graceful degradation, never a
-hard failure.
+Off by default and behind the ``lucent[review]`` extra (pydantic-ai). When enabled, a bounded
+model step reads the code behind each finding and explains what it does. When no model is
+configured the overlay is skipped and the deterministic report is unchanged.
 """
 
 from __future__ import annotations

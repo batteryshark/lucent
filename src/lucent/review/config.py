@@ -1,9 +1,9 @@
-"""Review-model configuration — any OpenAI- or Anthropic-compatible endpoint.
+"""Review-model configuration for any OpenAI- or Anthropic-compatible endpoint.
 
 The reviewer talks to whatever endpoint you point it at: a local server (LM Studio, Ollama,
 llama.cpp), OpenAI, Anthropic, or a compatible gateway. Resolution is env-first so the core
-stays self-contained; pydantic-ai is an optional dependency (``lucent[review]``). This mirrors
-unmask's ``reviewers/config.py`` with a ``LUCENT_REVIEW_*`` namespace.
+stays self-contained. pydantic-ai is an optional dependency (``lucent[review]``). The
+environment variables all use the ``LUCENT_REVIEW_*`` namespace.
 
     LUCENT_REVIEW_PROVIDER   preset (lmstudio|openai|anthropic) or "custom"
     LUCENT_REVIEW_MODEL      model id (required)
@@ -40,8 +40,8 @@ class ReviewModelConfig:
 
     @classmethod
     def from_spec(cls, spec: str | None, **kw) -> "ReviewModelConfig":
-        """Resolve a ``[provider:]model_id`` spec (``lmstudio:qwen2.5``, ``gpt-4o``), falling
-        back to env for base_url/api_key. ``spec=None`` is pure env resolution."""
+        """Resolve a ``[provider:]model_id`` spec (``lmstudio:qwen2.5``, ``gpt-4o``). Falls
+        back to env for base_url and api_key. ``spec=None`` means pure env resolution."""
         if not spec:
             return cls.from_env(**kw)
         provider, sep, model = spec.partition(":")
@@ -63,17 +63,17 @@ class ReviewModelConfig:
         kind = os.environ.get("LUCENT_REVIEW_KIND") or (preset.get("kind") if preset else None) or "openai"
         if not model:
             raise ReviewConfigError(
-                "no review model configured — set LUCENT_REVIEW_MODEL (and a base_url via "
+                "no review model configured: set LUCENT_REVIEW_MODEL (and a base_url via "
                 "LUCENT_REVIEW_BASE_URL or LUCENT_REVIEW_PROVIDER=lmstudio|ollama|openai|anthropic).")
         if not base_url:
             raise ReviewConfigError(
-                f"no base_url for review model {model!r} — set LUCENT_REVIEW_BASE_URL or a known "
+                f"no base_url for review model {model!r}: set LUCENT_REVIEW_BASE_URL or a known "
                 "LUCENT_REVIEW_PROVIDER.")
         return cls(model=model, base_url=base_url, api_key=api_key, provider=provider, kind=kind)
 
     def build_model(self):
-        """Construct the pydantic-ai model — Anthropic ``messages`` or OpenAI chat-completions
-        per ``kind``. Both take a base_url + api_key, so any compatible endpoint works."""
+        """Construct the pydantic-ai model: Anthropic ``messages`` or OpenAI chat-completions,
+        selected by ``kind``. Both take a base_url and api_key, so any compatible endpoint works."""
         try:
             if self.kind == "anthropic":
                 from pydantic_ai.models.anthropic import AnthropicModel

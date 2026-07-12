@@ -1,18 +1,18 @@
-"""Assembling findings, atoms, and structure into one assessment — with an overview and a
+"""Assembles findings, atoms, and structure into one assessment, with an overview and a
 compositional analysis.
 
-This is lucent's analogue of unmask's ``build_assessment``, but where unmask ends in a
-*disposition* (a security next-action), lucent ends in *understanding*. It projects the
-ledger's findings and observations into a self-describing dict the report renders, and adds
-two synthesis steps over the whole target:
+This is lucent's analogue of unmask's ``build_assessment``. unmask ends in a disposition (a
+security next-action); lucent ends in understanding. It projects the ledger's findings and
+observations into a self-describing dict that the report renders, and adds two synthesis steps
+over the whole target:
 
-* an **overview** — what the thing you pointed at *is*, overall, and what's in it;
-* a **composition** — how it is built: its components, their capabilities, and how they depend
-  on one another (the architecture, collapsed from the module reference graph).
+* an overview: what the target is, overall, and what is in it;
+* a composition: how it is built, meaning its components, their capabilities, and how they
+  depend on one another (the architecture, collapsed from the module reference graph).
 
-This is understanding, not security: findings carry no severity. Only brittle findings carry a
-*fragility* gradient; capabilities and decisions are just facts. Every finding's cited
-observations are resolved to concrete loci with a few lines of source context.
+These findings describe the code and carry no security severity. Only brittle findings carry a
+fragility gradient; capabilities and decisions are facts. Every finding's cited observations
+are resolved to concrete loci with a few lines of source context.
 """
 
 from __future__ import annotations
@@ -31,11 +31,12 @@ _MAX_LINE_CHARS = 220
 _CONTRACT_NOTE = (
     "This is a code-understanding report: a judgment-free inventory of what the target can do "
     "(observation atoms), read through four lenses (does / decides / brittle / surprising). "
-    "Capability is not accusation and absence is not a guarantee — an atom lucent did not "
-    "observe may still be reachable through a path its extractors do not cover. This is "
-    "understanding, not security: findings carry no severity. Only brittle findings carry a "
-    "fragility rating (how much a point complicates understanding or change), always separate "
-    "from confidence (how sure the reading is); every finding names what would disprove it.")
+    "A capability lucent observed is not an accusation. An atom lucent did not observe is not a "
+    "guarantee of absence, since it may still be reachable through a path the extractors do not "
+    "cover. These findings describe the code and carry no security severity. Only brittle "
+    "findings carry a fragility rating (how much a point complicates understanding or change), "
+    "always separate from confidence (how sure the reading is). Every finding names what would "
+    "disprove it.")
 
 
 def _window_line(raw: str):
@@ -44,7 +45,7 @@ def _window_line(raw: str):
 
 def _snippet(abspath: str | None, line: int | None, match_text: str | None):
     """A few lines of source context around a locus, with the matched callee located for
-    highlighting. Best-effort: unreadable file / no line → None."""
+    highlighting. Returns None if the file cannot be read or the line is missing or out of range."""
     if not abspath or not line or line < 1:
         return None
     try:
@@ -95,7 +96,7 @@ def _max_fragility(findings) -> str | None:
 # --- overview: what the target IS, overall ---------------------------------
 
 def _component_of(path: str) -> str:
-    """The top-level component a file belongs to — its first path segment, or ``(root)``."""
+    """The top-level component a file belongs to: its first path segment, or ``(root)``."""
     parts = str(path).split("/")
     return parts[0] if len(parts) > 1 else "(root)"
 
@@ -163,9 +164,9 @@ def _infer_kind(summary: dict, findings: list[dict], file_map: dict) -> str:
 
 def _overview(summary: dict, composition: dict, findings: list[dict],
               deps: dict, file_map: dict, docstrings: dict) -> dict:
-    """The overall summary: what the target is *for* (its own stated purpose), what it is, how
-    it's organized, what it can do, and where the change-risk sits — the "what did I point lucent
-    at, and what's it for?" read."""
+    """The overall summary: what the target is for (its own stated purpose), what it is, how it
+    is organized, what it can do, and where the change risk sits. It answers what the target is
+    and what it is for."""
     kind = _infer_kind(summary, findings, file_map)
     purpose = _root_docstring(docstrings, file_map)
     purpose = _first_paragraph(purpose) if purpose else None
@@ -173,7 +174,7 @@ def _overview(summary: dict, composition: dict, findings: list[dict],
     langs = ", ".join(summary["languages"])
     parts: list[str] = []
     scope = f"{files} file(s)" + (f", {mods} Python module(s), {syms} symbol(s)" if mods else "")
-    parts.append(f"This is {kind} — {scope} ({langs}).")
+    parts.append(f"This is {kind}: {scope} ({langs}).")
 
     comps = composition["components"]
     if len(comps) > 1:
@@ -185,8 +186,9 @@ def _overview(summary: dict, composition: dict, findings: list[dict],
     if caps:
         parts.append("Across the codebase it can: " + ", ".join(c.lower() for c in caps) + ".")
     else:
-        parts.append("It reaches for nothing outward that lucent can see (no exec, network, "
-                     "filesystem, or dynamic-loading call sites) — self-contained by that measure.")
+        parts.append("It makes no outward calls that lucent can see (no exec, network, "
+                     "filesystem, or dynamic-loading call sites), so it is self-contained by that "
+                     "measure.")
 
     entries = _entry_points(findings, file_map)
     if entries:
@@ -200,7 +202,7 @@ def _overview(summary: dict, composition: dict, findings: list[dict],
     dependents = deps.get("dependents", {})
     if dependents:
         hub, dents = max(dependents.items(), key=lambda kv: len(kv[1]))
-        parts.append(f"`{hub}` is the most-depended-on module ({len(dents)} internal importers) — "
+        parts.append(f"`{hub}` is the most-depended-on module ({len(dents)} internal importers), "
                      "where a change ripples furthest.")
     return {"kind": kind, "purpose": purpose, "text": " ".join(parts), "entryPoints": entries}
 
@@ -209,7 +211,7 @@ def _overview(summary: dict, composition: dict, findings: list[dict],
 
 def _composition(file_map: dict, observations: list[dict], deps: dict,
                  docstrings: dict) -> dict:
-    """Collapse the file inventory and module reference graph to the *component* level (the
+    """Collapse the file inventory and module reference graph to the component level (the
     top-level directories): each component's role (in its own words), size, aggregate
     capabilities, and which components depend on which. This is the architecture the module
     graph implies."""
@@ -245,7 +247,7 @@ def _composition(file_map: dict, observations: list[dict], deps: dict,
                  for c in sorted(comps.values(), key=lambda c: (-c["moduleCount"], c["name"]))]
     edge_list = [{"src": s, "dst": d, "count": n}
                  for (s, d), n in sorted(edges.items(), key=lambda kv: (-kv[1], kv[0]))]
-    # Foundations: components nothing internal depends *on* nothing (leaves) vs depended-on hubs.
+    # Foundations: components with internal dependents that depend on nothing internal (leaves).
     foundations = sorted((c["name"] for c in comp_list if c["dependents"] and not c["dependsOn"]))
     return {"components": comp_list, "edges": edge_list, "foundations": foundations}
 
