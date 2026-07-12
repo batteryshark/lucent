@@ -1,6 +1,6 @@
 # lucent
 
-![Lucent — a retro robot inspector illuminating the hidden workings of a machine](assets/lucent-logo.png)
+![Lucent — a retro robot inspector illuminating the hidden workings of a machine](assets/lucent-logo-480.png)
 
 *Figure out a codebase, as a ledgered investigation.*
 
