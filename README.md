@@ -1,5 +1,7 @@
 # lucent
 
+![Lucent — a retro robot inspector illuminating the hidden workings of a machine](assets/lucent-logo.png)
+
 *Figure out a codebase, as a ledgered investigation.*
 
 lucent reads a target and produces a coverage-guaranteed **understanding** of it: what every
