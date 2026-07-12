@@ -1,16 +1,24 @@
-"""lucent — code understanding as a ledgered investigation (a muster consumer).
+"""lucent — figure out a codebase, as a ledgered investigation (a muster consumer).
 
-The second domain built on muster's spine, and the cross-domain proof that the extraction
-seam holds. lucent enumerates a Python target's modules, understands each (functions,
-classes, methods, imports), and drains that surface to N/N coverage — the same guarantee
-muster gives unmask's detection sweep, over an entirely different domain, importing only
-`muster` (never unmask).
+lucent reads a target and produces a coverage-guaranteed *understanding* of it: a judgment-
+free inventory of what each file can do (observation atoms from the parallax taxonomy,
+across every language its extractor parses), the Python module's structure and dependency
+graph, and an interpretation of both through four lenses —
+
+    does        — what the code actually does (its capabilities)
+    decides     — where behaviour forks at runtime (dispatch, entry points, config)
+    brittle     — where it is fragile (opaque, remote-dependent, destructive, high-blast-radius)
+    surprising  — mismatches (capability that doesn't fit a module's role, orphans)
+
+muster owns the machinery (run identity, the SQLite ledger, the coverage-gated work-queue
+drain, resume); lucent brings the domain: the observation engine, the reference graph, the
+lenses, and the report. Same durable, resumable spine unmask uses for malicious-code
+detection, re-pointed from "is this malicious?" to "what is this, and where is it fragile?".
 """
 
 from __future__ import annotations
 
-__version__ = "0.0.1"
-
+from lucent._version import __version__
 from lucent.graph import LucentConfig
 from lucent.run import LucentResult, resume_lucent, run_lucent
 

@@ -1,0 +1,85 @@
+{
+  "schema_version": "parallax-signature-pack/v1",
+  "id": "lucent.python-idioms",
+  "name": "lucent Python stdlib idioms",
+  "version": "0.1.0",
+  "status": "experimental",
+  "description": "A lucent supplement to the parallax callee pack: common Python-standard-library call idioms the reference pack does not cover (pathlib file I/O, os.environ, hashlib, threading, time.sleep, socketserver, keyring). Python-only, high precision — every rule keys on a module-qualified name or a distinctive pathlib method name, both safe against the local-variable false positives a bare-name match would cause.",
+  "owners": ["lucent"],
+  "signatures": [
+    {
+      "id": "sig.envi.var.python.os-environ",
+      "atom": "ENVI.VAR", "surface": "callee", "method": "static-source",
+      "languages": ["python"],
+      "match": {"mode": "substring", "values": ["os.getenv", "os.environ"]},
+      "confidence": 0.75, "priority": 40,
+      "summary": "reads environment configuration",
+      "notes": "os.getenv / os.environ / os.environ.get and os.environ[...] subscripts."
+    },
+    {
+      "id": "sig.crpt.hash.python.hashlib",
+      "atom": "CRPT.HASH", "surface": "callee", "method": "static-source",
+      "languages": ["python"],
+      "match": {"mode": "substring", "values": ["hashlib.", "hmac.new"]},
+      "confidence": 0.6, "priority": 40,
+      "summary": "computes a hash / digest"
+    },
+    {
+      "id": "sig.rsrc.thread.python.concurrency",
+      "atom": "RSRC.THREAD", "surface": "callee", "method": "static-source",
+      "languages": ["python"],
+      "match": {"mode": "substring", "values": ["threading.thread", "multiprocessing.process", "multiprocessing.pool", "concurrent.futures", "asyncio.create_task", "asyncio.ensure_future", "asyncio.gather", "asyncio.to_thread", "_thread.start_new_thread"]},
+      "confidence": 0.6, "priority": 40,
+      "summary": "starts a thread, process, or async task"
+    },
+    {
+      "id": "sig.time.sleep.python",
+      "atom": "TIME.SLEEP", "surface": "callee", "method": "static-source",
+      "languages": ["python"],
+      "match": {"mode": "substring", "values": ["time.sleep", "asyncio.sleep"]},
+      "confidence": 0.5, "priority": 40,
+      "summary": "delays execution"
+    },
+    {
+      "id": "sig.netw.listen.python.servers",
+      "atom": "NETW.LISTEN", "surface": "callee", "method": "static-source",
+      "languages": ["python"],
+      "match": {"mode": "substring", "values": ["socketserver.", "http.server.httpserver", "asyncio.start_server", "make_server"]},
+      "confidence": 0.6, "priority": 40,
+      "summary": "binds a network listener (a server surface)"
+    },
+    {
+      "id": "sig.cred.store.python.keyring",
+      "atom": "CRED.STORE", "surface": "callee", "method": "static-source",
+      "languages": ["python"],
+      "match": {"mode": "substring", "values": ["keyring.get_password", "keyring.set_password", "netrc.netrc"]},
+      "confidence": 0.7, "priority": 40,
+      "summary": "reads a credential store"
+    },
+    {
+      "id": "sig.fsys.write.python.os-mkdir",
+      "atom": "FSYS.WRITE", "surface": "callee", "method": "static-source",
+      "languages": ["python"],
+      "match": {"mode": "substring", "values": ["os.makedirs", "os.mkdir"]},
+      "confidence": 0.6, "priority": 40,
+      "summary": "creates directories"
+    },
+    {
+      "id": "sig.fsys.write.python.pathlib",
+      "atom": "FSYS.WRITE", "surface": "callee", "method": "static-source",
+      "languages": ["python"],
+      "match": {"mode": "base", "values": ["write_text", "write_bytes", "mkdir"]},
+      "confidence": 0.6, "priority": 45,
+      "summary": "writes a file (pathlib)",
+      "notes": "Distinctive pathlib instance methods; the extractor emits these as bare method names only for the curated distinctive set, so they never fire on unrelated locals."
+    },
+    {
+      "id": "sig.fsys.read.python.pathlib",
+      "atom": "FSYS.READ", "surface": "callee", "method": "static-source",
+      "languages": ["python"],
+      "match": {"mode": "base", "values": ["read_text", "read_bytes"]},
+      "confidence": 0.55, "priority": 45,
+      "summary": "reads a file (pathlib)"
+    }
+  ]
+}

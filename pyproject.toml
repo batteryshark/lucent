@@ -4,19 +4,36 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lucent"
-version = "0.0.1"
-description = "Code understanding as a ledgered investigation: enumerate a Python codebase and understand it with guaranteed coverage."
+version = "0.1.0"
+description = "Figure out a codebase as a ledgered investigation: observe what every source file can do, read it through four lenses, with guaranteed coverage."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 authors = [{ name = "batteryshark" }]
-keywords = ["code-understanding", "static-analysis", "muster"]
+keywords = ["code-understanding", "static-analysis", "parallax", "tree-sitter", "muster"]
 
-# lucent is built on muster: it brings only its domain (what a code "symbol" is, how a
-# module is understood, when the surface is covered). The spine (ledger, work queue, graph
-# scaffolding, resume, coverage) comes from muster. Pure-stdlib `ast`, no heavy deps.
+# lucent is built on muster: it brings only its domain (the observation engine, the reference
+# graph, the lenses, the report); the spine (ledger, work queue, graph scaffolding, resume,
+# coverage) comes from muster. The core is dependency-light: Python targets are covered by
+# pure-stdlib `ast`, and other languages degrade to a regex callee scan.
 dependencies = [
     "muster",
+]
+
+[project.optional-dependencies]
+# Full multi-language fidelity: tree-sitter AST callee extraction for every grammar the
+# language pack ships. Without it, non-Python files fall back to a lower-fidelity regex scan
+# (surfaced in the report's coverage notes); Python is unaffected either way.
+parse = [
+    "tree-sitter>=0.23",
+    "tree-sitter-language-pack>=0.7",
+]
+
+# Optional agentic-review overlay: a bounded model step reads the code behind each finding and
+# deepens it (`lucent scan --review`). Off by default; the deterministic report never needs it.
+# The openai/anthropic extras pull the provider clients so any compatible endpoint works.
+review = [
+    "pydantic-ai-slim[openai,anthropic]>=0.0.30",
 ]
 
 # muster is consumed as a pinned git dependency (its own private repo).
@@ -29,12 +46,15 @@ lucent = "lucent.cli:main"
 [tool.hatch.build.targets.wheel]
 packages = ["src/lucent"]
 
-# The domain schema is a .sql data file loaded at runtime by lucent.ledger.
+# Runtime data files: the domain schema (loaded by lucent.ledger) and the vendored parallax
+# callee signature pack (loaded by lucent.signatures).
 [tool.hatch.build.targets.wheel.force-include]
 "src/lucent/schema.sql" = "lucent/schema.sql"
+"src/lucent/signatures/source-callees.json" = "lucent/signatures/source-callees.json"
+"src/lucent/signatures/python-idioms.json" = "lucent/signatures/python-idioms.json"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "pydantic-ai-slim>=0.0.30"]

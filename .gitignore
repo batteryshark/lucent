@@ -22,6 +22,5 @@ htmlcov/
 .DS_Store
 *.swp
 
-# Skill fetched host binaries — rebuilt via scripts/setup.sh; keep the .gitkeep placeholder
-seed/*/bin/*
-!seed/*/bin/.gitkeep
+# lucent run storage (the default --storage-root a scan writes to)
+.lucent/
