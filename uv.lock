@@ -379,7 +379,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "muster", git = "https://github.com/batteryshark/muster.git?rev=3a14fad5dec9e84483d12ebd4c3a62aecbb0eeb5" },
+    { name = "muster", git = "https://github.com/batteryshark/muster.git?rev=452d57304b16c52b6efc8039637fb20b6b11bed3" },
     { name = "pydantic-ai-slim", extras = ["openai", "anthropic"], marker = "extra == 'review'", specifier = ">=0.0.30" },
     { name = "tree-sitter", marker = "extra == 'parse'", specifier = ">=0.23" },
     { name = "tree-sitter-language-pack", marker = "extra == 'parse'", specifier = ">=0.7" },
@@ -395,7 +395,7 @@ dev = [
 [[package]]
 name = "muster"
 version = "0.0.1"
-source = { git = "https://github.com/batteryshark/muster.git?rev=3a14fad5dec9e84483d12ebd4c3a62aecbb0eeb5#3a14fad5dec9e84483d12ebd4c3a62aecbb0eeb5" }
+source = { git = "https://github.com/batteryshark/muster.git?rev=452d57304b16c52b6efc8039637fb20b6b11bed3#452d57304b16c52b6efc8039637fb20b6b11bed3" }
 dependencies = [
     { name = "pydantic-graph" },
 ]

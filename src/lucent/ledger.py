@@ -23,6 +23,11 @@ class LucentLedger(Ledger):
     def __init__(self, db_path: str | Path):
         super().__init__(db_path, extra_schema=_DOMAIN_SCHEMA, reset_tables=_DOMAIN_RESET_TABLES)
 
+    def reset_run_derived(self, run_id: str) -> None:
+        """Rebuild Lucent's work queue together with its derived domain state on resume."""
+        super().reset_run_derived(run_id)
+        self.delete_run_rows(run_id, "work_items", "work_notes")
+
     def add_symbol(self, *, run_id, module, name, kind, lineno=0, detail=None) -> str:
         sid = new_id("sym")
         self.conn.execute(

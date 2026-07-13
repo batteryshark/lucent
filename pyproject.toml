@@ -38,7 +38,7 @@ review = [
 
 # muster is consumed as a pinned git dependency (its own private repo).
 [tool.uv.sources]
-muster = { git = "https://github.com/batteryshark/muster.git", rev = "3a14fad5dec9e84483d12ebd4c3a62aecbb0eeb5" }
+muster = { git = "https://github.com/batteryshark/muster.git", rev = "452d57304b16c52b6efc8039637fb20b6b11bed3" }
 
 [project.scripts]
 lucent = "lucent.cli:main"
