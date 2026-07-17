@@ -16,7 +16,7 @@ from muster.ledger import Ledger, new_id, utcnow
 _DOMAIN_SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 _DOMAIN_SCHEMA = _DOMAIN_SCHEMA_PATH.read_text(encoding="utf-8")  # read once at import
 _DOMAIN_RESET_TABLES = ("symbols", "refs", "observations", "findings", "reviews",
-                        "reachability", "docstrings")
+                        "reachability", "docstrings", "deep_analyses")
 
 
 class LucentLedger(Ledger):
@@ -159,6 +159,25 @@ class LucentLedger(Ledger):
         rows = self.conn.execute(
             "select module, text from docstrings where run_id=?", (run_id,)).fetchall()
         return {r["module"]: r["text"] for r in rows}
+
+    # --- optional deep-provider evidence ------------------------------------
+
+    def add_deep_analysis(self, run_id: str, record: dict) -> str:
+        did = new_id("deep")
+        self.conn.execute(
+            "insert into deep_analyses (id, run_id, provider, source_language, frontend, mode, "
+            "status, record_json, created_at) values (?,?,?,?,?,?,?,?,?)",
+            (did, run_id, record.get("provider"), record.get("sourceLanguage"),
+             record.get("frontend"), record.get("mode"), record.get("status"),
+             json.dumps(record, sort_keys=True), utcnow()))
+        self.conn.commit()
+        return did
+
+    def deep_analyses(self, run_id: str) -> list[dict]:
+        rows = self.conn.execute(
+            "select record_json from deep_analyses where run_id=? "
+            "order by source_language, frontend, mode", (run_id,)).fetchall()
+        return [json.loads(row["record_json"]) for row in rows]
 
     # --- reachability (dead / unreachable / hard-to-reach code) --------------
 

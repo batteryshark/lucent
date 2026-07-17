@@ -132,3 +132,19 @@ create table if not exists docstrings (
     created_at text not null
 );
 create index if not exists idx_docstrings_run on docstrings(run_id);
+
+-- Optional deep-provider results. These are derived after Lucent's broad index and do not
+-- participate in its coverage gate. The full normalized provider record is kept intact so
+-- provenance, coverage, unresolved types, path semantics, and budgets survive projection.
+create table if not exists deep_analyses (
+    id              text primary key,
+    run_id          text not null,
+    provider        text not null,
+    source_language text,
+    frontend        text,
+    mode            text not null,
+    status          text not null,
+    record_json     text not null,
+    created_at      text not null
+);
+create index if not exists idx_deep_analyses_run on deep_analyses(run_id);

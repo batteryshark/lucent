@@ -81,6 +81,25 @@ uses for malicious-code detection, aimed at a different question: not "is this m
 
 ## Deepen it (optional)
 
+For focused interprocedural context, pass `--joern`. Lucent finishes its normal broad index
+first, then selects a bounded set of relevant files from observed behavior and the optional
+goal. It builds one CPG per selected language and reuses that CPG for declarative behavior-flow
+and usage slices. The normalized evidence records coverage, unresolved types, resource limits,
+target/profile/image digests, and whether a path is an explicit reaching definition or merely
+selected by the sink query. It never claims flow across language boundaries.
+
+```bash
+lucent scan path/to/target --joern
+lucent scan path/to/target --joern --goal "how does auth data reach API calls?"
+```
+
+This requires Rekit's `joern-slice` skill and its pinned Joern image to be installed. Analysis
+is static, offline, and bounded by the Rekit runner; Lucent does not accept caller-supplied
+Scala or Joern scripts. If the runner is unavailable or a slice fails validation, the regular
+Lucent report is still produced with the provider limitation recorded.
+
+### Agentic explanation
+
 The mechanical findings tell you *that* the code does something. An optional agentic overlay
 tells you what it means. Pass `--review` and lucent reads the code behind each finding with a
 model and adds a plain-language explanation, a refined confidence, and a verdict (confirm,
@@ -94,9 +113,10 @@ lucent scan path/to/target --review --model openai:gpt-4o
 ```
 
 Add an optional **goal** to focus the review. `--goal` nudges the reviewer toward an area, a
-capability, or a question. It steers interpretation and what the report surfaces, never the
-deterministic passes, so the map stays complete. The reviewer weights its reading toward the
-goal and flags which findings bear on it, and the report leads with a "Toward your goal" digest.
+capability, or a question; with `--joern`, it also helps choose the bounded deep-analysis
+subset. It never changes the deterministic passes, so the map stays complete. The reviewer
+weights its reading toward the goal and flags which findings bear on it, and the report leads
+with a "Toward your goal" digest.
 
 ```bash
 lucent scan path/to/target --review --model openai:gpt-4o \

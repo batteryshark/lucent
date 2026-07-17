@@ -254,11 +254,12 @@ def _composition(file_map: dict, observations: list[dict], deps: dict,
 
 def build_assessment(*, target_path, findings, observations, deps, summary,
                      file_map, extraction_mode, coverage, reviews=None, goal=None,
-                     docstrings=None) -> dict:
+                     docstrings=None, deep_analyses=None) -> dict:
     """Project findings + observations + structure into the assessment dict. When ``reviews``
     (the optional agentic overlay) are present, each finding is annotated with its review and a
     run-level review block is attached. ``goal`` is the reader's optional question, surfaced in
     the overview and used to collect goal-relevant findings from the reviews."""
+    deep_analyses = deep_analyses or []
     obs_dicts = {o["id"]: _obs_to_dict(o, file_map) for o in observations}
 
     cited, seen = [], set()
@@ -287,8 +288,40 @@ def build_assessment(*, target_path, findings, observations, deps, summary,
     summary = {**summary, "findingCount": len(findings), "byLens": by_lens,
                "componentCount": len(composition["components"]),
                "highestFragility": _max_fragility(findings),
-               "reviewedCount": len(reviews) if reviews else 0}
+               "reviewedCount": len(reviews) if reviews else 0,
+               "deepSliceCount": sum(len(((r.get("evidence") or {}).get("graph") or {}).get("paths", []))
+                                     for r in (deep_analyses or []) if r.get("status") == "completed")}
     overview = _overview(summary, composition, findings, deps, file_map, docstrings)
+
+    deep_block = None
+    if deep_analyses:
+        statuses = [record.get("status") for record in deep_analyses]
+        if statuses and all(status == "completed" for status in statuses):
+            deep_status = "completed"
+        elif any(status == "completed" for status in statuses):
+            deep_status = "partial"
+        elif all(status == "skipped" for status in statuses):
+            deep_status = "skipped"
+        else:
+            deep_status = "unavailable"
+        deep_block = {
+            "provider": "joern", "status": deep_status, "runs": deep_analyses,
+            "limitations": [
+                "Joern runs only on Lucent's bounded, index-selected candidates.",
+                "Each run uses one language frontend and does not establish cross-language flow.",
+                "Empty, unresolved, excluded, or truncated slices are bounded evidence, not proof of absence.",
+            ],
+        }
+
+    coverage_notes = [
+        f"Non-Python extraction backend: {extraction_mode}. "
+        "Without the tree-sitter language pack, non-Python files fall back to a "
+        "lower-fidelity regex callee scan.",
+        "The dependency graph and symbol inventory are Python-only; other "
+        "languages are observed for behaviour but not structurally linked.",
+    ]
+    if deep_block:
+        coverage_notes.extend(deep_block["limitations"])
 
     return {
         "schemaVersion": ASSESSMENT_VERSION,
@@ -301,16 +334,10 @@ def build_assessment(*, target_path, findings, observations, deps, summary,
         "synopsis": {"text": overview["text"], "author": "lucent"},   # one-line lead for the CLI
         "summary": summary,
         "review": review_overlay,
+        "deepAnalysis": deep_block,
         "findings": findings,
         "observations": cited,
         "dependencies": deps,
-        "coverage": {**coverage, "extractionMode": extraction_mode,
-                     "notes": [
-                         f"Non-Python extraction backend: {extraction_mode}. "
-                         "Without the tree-sitter language pack, non-Python files fall back to a "
-                         "lower-fidelity regex callee scan.",
-                         "The dependency graph and symbol inventory are Python-only; other "
-                         "languages are observed for behaviour but not structurally linked.",
-                     ]},
+        "coverage": {**coverage, "extractionMode": extraction_mode, "notes": coverage_notes},
         "contract": {"note": _CONTRACT_NOTE},
     }

@@ -11,7 +11,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 
     result = run_lucent(args.target, LucentConfig(
         storage_root=args.storage_root, review=args.review or bool(args.model),
-        model=args.model, goal=args.goal))
+        model=args.model, goal=args.goal, joern=args.joern))
     if args.json:
         print(json.dumps(result.__dict__, indent=2))
         return 0
@@ -34,6 +34,8 @@ def _cmd_scan(args: argparse.Namespace) -> int:
           + (f"; most fragile: {frag}" if frag else ""))
     if s.get("reviewedCount"):
         print(f"Reviewed:  {s['reviewedCount']} finding(s) by an agentic reviewer")
+    if s.get("deepSliceCount"):
+        print(f"Deep:      {s['deepSliceCount']} focused Joern path(s)")
     print(f"Coverage:  {result.coverage['done']}/{result.coverage['workItemsTotal']} work items done")
     print(f"Report:    {result.report_paths.get('html')}")
     return 0 if result.status == "completed" else 1
@@ -52,8 +54,10 @@ def build_parser() -> argparse.ArgumentParser:
     sc.add_argument("--model", default=None,
                     help="review model spec, e.g. 'openai:gpt-4o' or 'lmstudio:qwen2.5' (implies --review)")
     sc.add_argument("--goal", default=None,
-                    help="an optional goal or question to nudge the reviewer toward, e.g. "
-                         "'how does auth work?' or 'focus on network egress' (only affects --review)")
+                    help="an optional goal or question for review and focused Joern selection, "
+                         "e.g. 'how does auth work?' or 'focus on network egress'")
+    sc.add_argument("--joern", action="store_true",
+                    help="add bounded, index-selected Joern flow and usage slices (optional)")
     sc.set_defaults(func=_cmd_scan)
     return p
 

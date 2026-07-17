@@ -74,6 +74,34 @@ def render_markdown(a: dict) -> str:
         out.append("**Languages:** " + ", ".join(f"{k} ({v})" for k, v in langs.items()))
     out.append("")
 
+    deep = a.get("deepAnalysis") or {}
+    if deep:
+        out += ["## Focused code-property-graph slices", "",
+                f"**Provider status:** {deep.get('status')}", ""]
+        for run in deep.get("runs", []):
+            label = f"{run.get('sourceLanguage') or 'selection'} / {run.get('mode')}"
+            out.append(f"### {label}")
+            out.append(f"_status: **{run.get('status')}** · frontend: "
+                       f"`{run.get('frontend') or 'n/a'}`_")
+            candidates = (run.get("selection") or {}).get("candidates") or []
+            if candidates:
+                out += ["", "Candidates: " + ", ".join(f"`{path}`" for path in candidates)]
+            evidence = run.get("evidence") or {}
+            analysis, target_info = evidence.get("analysis") or {}, evidence.get("target") or {}
+            if evidence:
+                out += ["", f"Target manifest: `{target_info.get('manifestSha256')}`  ",
+                        f"Profile: `{analysis.get('profileSha256') or 'n/a'}`  ",
+                        f"Image: `{(evidence.get('producer') or {}).get('image')}`"]
+                nodes = {str(node.get("id")): node for node in
+                         (evidence.get("graph") or {}).get("nodes", []) if isinstance(node, dict)}
+                for path in (evidence.get("graph") or {}).get("paths", []):
+                    steps = [str((nodes.get(str(identifier)) or {}).get("code") or identifier)
+                             for identifier in path.get("nodes", [])]
+                    out.append(f"- `{path.get('relation')}`: " + " → ".join(steps))
+            if run.get("error"):
+                out += ["", f"Provider note: {run['error']}"]
+            out.append("")
+
     for lens in _LENSES:
         group = [f for f in (a.get("findings") or []) if f["lens"] == lens]
         if not group:
@@ -289,6 +317,8 @@ h2.sec .count{color:var(--faint);font-weight:600;text-transform:none}
 .covlist li{font-size:13px;color:var(--muted);line-height:1.55;padding-left:18px;position:relative}
 .covlist li::before{content:"•";position:absolute;left:2px;color:var(--faint)}
 .contract{margin-top:18px;font-size:13px;color:var(--faint);line-height:1.6;border-left:3px solid var(--line);padding:2px 0 2px 14px}
+.deepmeta{font-size:11.5px;color:var(--faint);word-break:break-all;margin-top:7px}
+.deeppath{font-size:12.5px;color:var(--muted);margin-top:7px;line-height:1.5}
 @media (max-width:560px){.wrap{padding:26px 15px 56px}.synopsis h1{font-size:19px}.card{padding:14px 15px}.card h3{flex-basis:100%}}
 @media print{.card,.synopsis,.axis,.ev,.hub{box-shadow:none;break-inside:avoid}a{color:inherit;text-decoration:none}}
 """
@@ -460,6 +490,8 @@ def render_html(a: dict) -> str:
     toc = [("overview", "Overview")]
     if (a.get("composition") or {}).get("components"):
         toc.append(("composition", "Composition"))
+    if a.get("deepAnalysis"):
+        toc.append(("deep-analysis", "Focused CPG slices"))
     for lens in _LENSES:
         n = summ.get("byLens", {}).get(lens, 0)
         if n:
@@ -495,6 +527,45 @@ def render_html(a: dict) -> str:
                      + role
                      + (f"<div class='ccaps'>{capchips}</div>" if capchips else "")
                      + deps_line + "</div>")
+        p.append("</div>")
+
+    # Optional focused Joern evidence. Full normalized evidence remains in the JSON report;
+    # this compact projection exposes candidate scope, provenance, and path semantics.
+    deep = a.get("deepAnalysis") or {}
+    if deep:
+        runs = deep.get("runs") or []
+        p.append("<h2 class='sec' id='deep-analysis'>Focused CPG slices "
+                 f"<span class='count'>· {_esc(deep.get('status'))}</span></h2>")
+        p.append("<p class='axes-note'>Bounded files selected from Lucent's index. Each CPG "
+                 "covers one source language; these slices do not claim cross-language flow.</p>")
+        p.append("<div class='comps'>")
+        for run in runs:
+            selection = run.get("selection") or {}
+            evidence = run.get("evidence") or {}
+            graph = evidence.get("graph") or {}
+            title = f"{run.get('sourceLanguage') or 'selection'} · {run.get('mode')}"
+            candidates = selection.get("candidates") or []
+            body = (f"<div class='comp-role'>status: {_esc(run.get('status'))} · frontend: "
+                    f"<code>{_esc(run.get('frontend') or 'n/a')}</code> · "
+                    f"{len(candidates)} candidate(s)</div>")
+            if evidence:
+                analysis = evidence.get("analysis") or {}
+                target_info = evidence.get("target") or {}
+                body += ("<div class='deepmeta'>manifest "
+                         f"{_esc(target_info.get('manifestSha256'))}<br>profile "
+                         f"{_esc(analysis.get('profileSha256') or 'n/a')}<br>image "
+                         f"{_esc((evidence.get('producer') or {}).get('image'))}</div>")
+                nodes = {str(node.get("id")): node for node in graph.get("nodes", [])
+                         if isinstance(node, dict)}
+                for path in graph.get("paths", [])[:4]:
+                    steps = [str((nodes.get(str(identifier)) or {}).get("code") or identifier)
+                             for identifier in path.get("nodes", [])]
+                    body += (f"<div class='deeppath'><code>{_esc(path.get('relation'))}</code>: "
+                             f"{_esc(' → '.join(steps))}</div>")
+            if run.get("error"):
+                body += f"<div class='deeppath'>{_esc(run['error'])}</div>"
+            p.append(f"<div class='comp'><div class='comp-h'><span class='comp-name'>"
+                     f"{_esc(title)}</span></div>{body}</div>")
         p.append("</div>")
 
     # Findings by lens

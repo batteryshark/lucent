@@ -1,6 +1,7 @@
 """lucent's phase graph: thin domain nodes over muster's scaffolding.
 
     InitializeRun -> InventorySources -> ProcessWorkQueue (drain) -> ComposeFindings
+                  -> DeepenUnderstanding (optional) -> ReviewFindings (optional)
                   -> RenderReport -> End
 
 muster provides the machinery (identity, the ledger, the work-queue drain, resume,
@@ -55,11 +56,27 @@ class LucentConfig:
     review: bool = False
     model: str | None = None
     models: dict = field(default_factory=dict)
-    # Optional goal or question that steers the agentic reviewer toward one area, capability,
-    # or question. It does not touch the deterministic passes: those stay exhaustive so the
-    # coverage guarantee holds. The goal only affects interpretation and what the report
-    # surfaces.
+    # Optional goal or question. It steers the agentic reviewer and, when Joern is enabled,
+    # helps choose its bounded candidate subset. It never changes the exhaustive deterministic
+    # passes, so Lucent's coverage guarantee remains independent of the goal.
     goal: str | None = None
+    # Optional index-first Joern deepening. It is outside the coverage predicate and stages at
+    # most this bounded candidate set per language after the normal index is complete.
+    joern: bool = False
+    joern_max_files: int = 12
+    joern_max_bytes: int = 16 * 1024 * 1024
+    joern_timeout: int = 300
+    joern_slice_depth: int = 12
+
+    def __post_init__(self) -> None:
+        if not 1 <= self.joern_max_files <= 100:
+            raise ValueError("joern_max_files must be between 1 and 100")
+        if not 1 <= self.joern_max_bytes <= 512 * 1024 * 1024:
+            raise ValueError("joern_max_bytes must be between 1 and 536870912")
+        if not 1 <= self.joern_timeout <= 3600:
+            raise ValueError("joern_timeout must be between 1 and 3600")
+        if not 1 <= self.joern_slice_depth <= 64:
+            raise ValueError("joern_slice_depth must be between 1 and 64")
 
     def config_hash(self) -> str:
         # model/models/goal are volatile routing, not identity; drop them so a run's id is stable
@@ -81,6 +98,7 @@ class LucentDeps(GraphDeps):
     The ledger/paths/scratch/resume come from muster's GraphDeps base."""
     config: LucentConfig = field(default_factory=LucentConfig)
     review_model: Any = None
+    joern_runner: Any = None
 
     def model_for(self, role: str):
         """Resolve the pydantic-ai model for a bounded model step's role. An injected
@@ -173,7 +191,7 @@ class ComposeFindings(BaseNode[LucentState, LucentDeps, dict]):
     after the drain, so the whole atom + structure substrate is known and composition is
     deterministic."""
 
-    async def run(self, ctx: _Ctx) -> "ReviewFindings":
+    async def run(self, ctx: _Ctx) -> "DeepenUnderstanding":
         d, s = ctx.deps, ctx.state
         _enter(ctx, "ComposeFindings")
         obs = d.ledger.observations(s.run_id)
@@ -189,6 +207,36 @@ class ComposeFindings(BaseNode[LucentState, LucentDeps, dict]):
                 module=f.get("module"), composition=f.get("composition"),
                 evidence=f["evidence"], disproof=f["disproof"], verify=f["verify"])
         d.ledger.event(s.run_id, "ComposeFindings", "note", {"findings": len(findings)})
+        return DeepenUnderstanding()
+
+
+@dataclass
+class DeepenUnderstanding(BaseNode[LucentState, LucentDeps, dict]):
+    """Optionally add bounded Joern slices selected from Lucent's completed index."""
+
+    async def run(self, ctx: _Ctx) -> "ReviewFindings":
+        d, s = ctx.deps, ctx.state
+        if not d.config.joern:
+            return ReviewFindings()
+        _enter(ctx, "DeepenUnderstanding")
+        from lucent.deep.joern import run_joern_provider
+
+        records = run_joern_provider(
+            target_path=Path(str(s.target_path)), run_dir=Path(str(s.run_dir)),
+            observations=d.ledger.observations(s.run_id),
+            findings=d.ledger.findings(s.run_id),
+            module_languages=d.ledger.module_languages(s.run_id),
+            file_map=d.ledger.artifact_paths(s.run_id),
+            symbols=d.ledger.symbols_by_module(s.run_id),
+            deps=d.ledger.dependency_graph(s.run_id), goal=d.config.goal,
+            max_files=d.config.joern_max_files, max_bytes=d.config.joern_max_bytes,
+            timeout=d.config.joern_timeout, slice_depth=d.config.joern_slice_depth,
+            runner=d.joern_runner)
+        for record in records:
+            d.ledger.add_deep_analysis(s.run_id, record)
+        completed = sum(record.get("status") == "completed" for record in records)
+        d.ledger.event(s.run_id, "DeepenUnderstanding", "note",
+                       {"records": len(records), "completed": completed})
         return ReviewFindings()
 
 
@@ -211,12 +259,14 @@ class ReviewFindings(BaseNode[LucentState, LucentDeps, dict]):
             return RenderReport()
 
         from lucent.review import build_reviewer, review_finding
+        from lucent.deep.joern import context_for_module
         findings = d.ledger.findings(s.run_id)
         file_map = d.ledger.artifact_paths(s.run_id)
         obs_by_id = {o["id"]: _assess._obs_to_dict(o, file_map)
                      for o in d.ledger.observations(s.run_id)}
         model_name = getattr(model, "model_name", None) or d.config.model
         agent = build_reviewer(model)
+        deep_records = d.ledger.deep_analyses(s.run_id)
         sem = asyncio.Semaphore(_REVIEW_CONCURRENCY)
 
         goal = d.config.goal
@@ -224,8 +274,10 @@ class ReviewFindings(BaseNode[LucentState, LucentDeps, dict]):
         async def _review(f: dict) -> None:
             evidence = [obs_by_id[ev["obs"]] for ev in f.get("evidence", [])
                         if isinstance(ev, dict) and ev.get("obs") in obs_by_id]
+            deep_context = context_for_module(deep_records, f.get("module"))
             async with sem:                         # bound concurrent model calls
-                review = await review_finding(f, evidence, goal=goal, agent=agent)
+                review = await review_finding(f, evidence, deep_context=deep_context,
+                                              goal=goal, agent=agent)
             d.ledger.record_review(s.run_id, review, model=model_name)  # sync commit, no await held
 
         await asyncio.gather(*(_review(f) for f in findings))
@@ -255,7 +307,8 @@ class RenderReport(BaseNode[LucentState, LucentDeps, dict]):
             summary=summary, file_map=d.ledger.artifact_paths(s.run_id),
             extraction_mode=_observe.extraction_mode(), coverage=coverage,
             reviews=d.ledger.reviews(s.run_id), goal=d.config.goal,
-            docstrings=d.ledger.docstrings(s.run_id))
+            docstrings=d.ledger.docstrings(s.run_id),
+            deep_analyses=d.ledger.deep_analyses(s.run_id))
 
         # Optional agentic purpose + mechanism synthesis: "what is this for, and how does it do
         # that?" Runs only when review is on and a model resolves; failure leaves the
@@ -265,7 +318,8 @@ class RenderReport(BaseNode[LucentState, LucentDeps, dict]):
                 from lucent.review import synthesize_purpose
                 synth = await synthesize_purpose(
                     assessment["overview"], assessment["composition"],
-                    goal=d.config.goal, model=d.model_for("reviewer"))
+                    goal=d.config.goal, deep_analysis=assessment.get("deepAnalysis"),
+                    model=d.model_for("reviewer"))
                 if synth is not None:
                     assessment["overview"]["purpose"] = synth.purpose
                     assessment["overview"]["howItWorks"] = synth.how_it_works
@@ -307,6 +361,7 @@ def build_graph() -> Graph:
         g.node(InventorySources),
         g.node(ProcessWorkQueue),
         g.node(ComposeFindings),
+        g.node(DeepenUnderstanding),
         g.node(ReviewFindings),
         g.node(RenderReport),
     )
