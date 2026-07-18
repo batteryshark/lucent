@@ -97,13 +97,40 @@ def build_prompt(finding: dict, evidence: list[dict], goal: str | None = None) -
     return "\n".join(lines)
 
 
-async def review_finding(finding: dict, evidence: list[dict], *, goal: str | None = None,
-                         agent=None, model=None) -> FindingReview:
+def _deep_context_lines(contexts: list[dict]) -> list[str]:
+    if not contexts:
+        return []
+    out = [
+        "Focused Joern context (bounded, index-selected; one language per CPG):",
+        "A relation of slice-selected-by-sink means selection context, not a fabricated data-flow edge.",
+    ]
+    for context in contexts:
+        if context.get("mode") == "behavior-flow":
+            out.append(f"- behavior path · relation={context.get('relation')}")
+            for step in context.get("steps", []):
+                out.append(f"    {step.get('file')}:{step.get('line')} · "
+                           f"{_clip(str(step.get('code') or step.get('method') or ''))}"
+                           + (f" · type={step.get('type')}" if step.get("type") else ""))
+        else:
+            relations = ", ".join(context.get("relations", [])) or "no normalized edges"
+            out.append(f"- usages · relations={relations}")
+            for node in context.get("nodes", []):
+                out.append(f"    {node.get('file')}:{node.get('line')} · "
+                           f"{_clip(str(node.get('code') or node.get('name') or ''))}"
+                           + (f" · type={node.get('type')}" if node.get("type") else ""))
+    return out
+
+
+async def review_finding(finding: dict, evidence: list[dict], *, deep_context=None,
+                         goal: str | None = None, agent=None, model=None) -> FindingReview:
     """Review one finding. Async so it runs on the graph's event loop. Any failure degrades to
     a ``needs_human`` review that keeps the finding flagged rather than dropping it."""
     agent = agent or build_reviewer(model)
     try:
-        result = await agent.run(build_prompt(finding, evidence, goal))
+        prompt = build_prompt(finding, evidence, goal)
+        if deep_context:
+            prompt += "\n\n" + "\n".join(_deep_context_lines(deep_context))
+        result = await agent.run(prompt)
         fr: FindingReview = result.output
         if fr.finding_id != finding.get("id"):
             fr = fr.model_copy(update={"finding_id": finding.get("id", "")})

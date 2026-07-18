@@ -43,7 +43,8 @@ def build_reviewer(model):
     return Agent(model, output_type=PurposeSynthesis, instructions=_INSTRUCTIONS, retries=2)
 
 
-def _prompt(overview: dict, composition: dict, goal: str | None) -> str:
+def _prompt(overview: dict, composition: dict, goal: str | None,
+            deep_analysis: dict | None = None) -> str:
     lines = [f"Target: {overview.get('kind')}."]
     if overview.get("purpose"):
         lines += ["", f"Its package docstring says: \"{overview['purpose']}\""]
@@ -59,18 +60,35 @@ def _prompt(overview: dict, composition: dict, goal: str | None) -> str:
     if goal:
         lines += ["", f"The reader's particular interest: {goal}. Weight the explanation toward it "
                   "if relevant, but still describe the whole."]
+    completed = [run for run in (deep_analysis or {}).get("runs", [])
+                 if run.get("status") == "completed"]
+    if completed:
+        lines += ["", "Focused Joern evidence (bounded index-selected subsets; never infer "
+                  "cross-language flow):"]
+        for run in completed:
+            graph = (run.get("evidence") or {}).get("graph") or {}
+            lines.append(f"- {run.get('sourceLanguage')} {run.get('mode')}: "
+                         f"{len(graph.get('paths', []))} path(s), "
+                         f"{len(graph.get('nodes', []))} normalized node(s)")
+            nodes = {str(node.get("id")): node for node in graph.get("nodes", [])
+                     if isinstance(node, dict)}
+            for path in graph.get("paths", [])[:3]:
+                codes = [str(nodes.get(str(identifier), {}).get("code") or "")
+                         for identifier in path.get("nodes", [])]
+                codes = [code for code in codes if code]
+                lines.append(f"  relation={path.get('relation')}: " + " -> ".join(codes[:8]))
     lines += ["", "Write `purpose` and `how_it_works`."]
     return "\n".join(lines)
 
 
 async def synthesize_purpose(overview: dict, composition: dict, *, goal=None, model=None,
-                             agent=None) -> PurposeSynthesis | None:
+                             deep_analysis=None, agent=None) -> PurposeSynthesis | None:
     """Synthesize the purpose + mechanism narrative, or None on any failure (graceful)."""
     if not composition.get("components"):
         return None
     agent = agent or build_reviewer(model)
     try:
-        result = await agent.run(_prompt(overview, composition, goal))
+        result = await agent.run(_prompt(overview, composition, goal, deep_analysis))
         return result.output
     except Exception:
         return None

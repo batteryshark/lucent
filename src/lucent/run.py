@@ -30,12 +30,13 @@ class LucentResult:
 
 
 def _drive(paths: RunPaths, config: LucentConfig, target_path: Path,
-           ledger: LucentLedger, *, review_model=None, resume: bool = False) -> LucentResult:
+           ledger: LucentLedger, *, review_model=None, joern_runner=None,
+           resume: bool = False) -> LucentResult:
     state = LucentState(run_id=paths.run_id, project_id=paths.project_id, run_dir=paths.run_dir,
                         db_path=paths.db_path, target_path=target_path,
                         max_iterations=config.max_iterations)
     deps = LucentDeps(ledger=ledger, paths=paths, config=config, resume=resume,
-                      review_model=review_model)
+                      review_model=review_model, joern_runner=joern_runner)
     graph = build_graph()
     try:
         result = graph.run_sync(inputs=InitializeRun(), state=state, deps=deps)
@@ -50,7 +51,8 @@ def _drive(paths: RunPaths, config: LucentConfig, target_path: Path,
         synopsis=result["synopsis"], report_paths=result["reportPaths"])
 
 
-def run_lucent(target: str, config: LucentConfig | None = None, *, review_model=None) -> LucentResult:
+def run_lucent(target: str, config: LucentConfig | None = None, *, review_model=None,
+               joern_runner=None) -> LucentResult:
     config = config or LucentConfig()
     target_path = Path(target).resolve()
     if not target_path.exists():
@@ -67,10 +69,11 @@ def run_lucent(target: str, config: LucentConfig | None = None, *, review_model=
         target_root=target_root, storage_root=Path(config.storage_root).resolve(),
         run_dir=paths.run_dir, config_json=json.dumps(config.__dict__),
     )
-    return _drive(paths, config, target_path, ledger, review_model=review_model)
+    return _drive(paths, config, target_path, ledger, review_model=review_model,
+                  joern_runner=joern_runner)
 
 
-def resume_lucent(run_dir: str, *, review_model=None) -> LucentResult:
+def resume_lucent(run_dir: str, *, review_model=None, joern_runner=None) -> LucentResult:
     """Re-drive an existing run from its ledger: reconstruct config and target from the DB,
     clear derived state (reset_run_derived wipes the base tables and the `symbols` table),
     then re-drive."""
@@ -93,4 +96,5 @@ def resume_lucent(run_dir: str, *, review_model=None) -> LucentResult:
         run_dir=paths.run_dir, config_json=row["config_json"],
     )
     ledger.event(paths.run_id, "ResumeRun", "note", {"resumedFrom": row["status"]})
-    return _drive(paths, config, target_path, ledger, review_model=review_model, resume=True)
+    return _drive(paths, config, target_path, ledger, review_model=review_model,
+                  joern_runner=joern_runner, resume=True)
